@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudConnect - My Files</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            background-color: #f4f7f6; 
+        }
+        
+        /* Sidebar Navigation */
+        .sidebar { 
+            width: 250px; 
+            background: #2c3e50; 
+            color: white; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 { 
+            font-size: 1.5rem; 
+            margin-bottom: 2rem; 
+            color: #3498db; 
+            text-align: center;
+        }
+        
+        .nav-item { 
+            padding: 12px 15px; 
+            cursor: pointer; 
+            border-radius: 5px; 
+            margin-bottom: 10px; 
+            transition: 0.3s;
+        }
+        
+        .nav-item:hover { background: #34495e; }
+        .active { background: #3498db !important; }
+
+        /* Main Content Area */
+        .main-content { 
+            flex: 1; 
+            padding: 40px; 
+            overflow-y: auto; 
+        }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 20px;
+        }
+
+        .header h1 { color: #2c3e50; margin: 0; }
+        
+        /* File Grid System */
+        .file-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            gap: 20px; 
+        }
+        
+        .file-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            transition: 0.3s; 
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        
+        .file-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1); 
+            border-color: #3498db;
+        }
+        
+        .file-icon { 
+            font-size: 50px; 
+            margin-bottom: 15px; 
+            display: block; 
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            word-break: break-all;
+            display: block;
+        }
+
+        .file-date {
+            font-size: 11px;
+            color: #999;
+            margin-top: 8px;
+            display: block;
+        }
+        
+        /* Buttons */
+        .upload-btn { 
+            background: #3498db; 
+            color: white; 
+            padding: 12px 25px; 
+            border-radius: 8px; 
+            text-decoration: none; 
+            font-weight: bold; 
+            transition: 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .upload-btn:hover { background: #2980b9; }
+
+        .logout-link {
+            margin-top: auto;
+            color: #e74c3c;
+            text-decoration: none;
+            padding: 12px 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>CloudConnect</h2>
+        <div class="nav-item active">📁 My Files</div>
+        <div class="nav-item">🕒 Recent</div>
+        <div class="nav-item">⭐ Favorites</div>
+        <a href="/" class="logout-link">Logout</a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>My Storage</h1>
+            <button class="upload-btn">+ Upload New File</button>
+        </div>
+
+        <div id="fileGrid" class="file-grid">
+            <p>Loading your files...</p>
+        </div>
+    </div>
+
+    <script>
+        const uploadBtn = document.querySelector('.upload-btn');
+        const fileGrid = document.getElementById('fileGrid');
+
+        // 1. Function to Fetch and Display Files from MongoDB
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const files = await response.json();
+                
+                // Clear the grid (removes "Loading..." or old items)
+                fileGrid.innerHTML = '';
+
+                if (files.length === 0) {
+                    fileGrid.innerHTML = '<p>No files uploaded yet. Start by clicking the button above!</p>';
+                    return;
+                }
+
+                files.forEach(file => {
+                    const card = document.createElement('div');
+                    card.className = 'file-card';
+                    card.innerHTML = `
+                        <span class="file-icon">📄</span>
+                        <span class="file-name">${file.originalName}</span>
+                        <span class="file-date">${new Date(file.uploadDate).toLocaleDateString()}</span>
+                    `;
+                    fileGrid.appendChild(card);
+                });
+            } catch (err) {
+                console.error('Error loading files:', err);
+                fileGrid.innerHTML = '<p style="color:red;">Error connecting to server.</p>';
+            }
+        }
+
+        // 2. Setup File Upload Logic
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'file';
+
+        uploadBtn.addEventListener('click', () => {
+            hiddenInput.click();
+        });
+
+        hiddenInput.addEventListener('change', async () => {
+            if (hiddenInput.files.length === 0) return;
+            
+            const formData = new FormData();
+            formData.append('file', hiddenInput.files[0]);
+
+            // Show a temporary "Uploading..." alert or state
+            uploadBtn.innerText = 'Uploading...';
+            uploadBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/upload', { 
+                    method: 'POST', 
+                    body: formData 
+                });
+
+                if (res.ok) {
+                    alert('File uploaded successfully!');
+                    loadFiles(); // Refresh the grid to show new file
+                } else {
+                    alert('Upload failed. Server returned an error.');
+                }
+            } catch (err) {
+                alert('Upload failed. Check your connection.');
+            } finally {
+                uploadBtn.innerText = '+ Upload New File';
+                uploadBtn.disabled = false;
+            }
+        });
+
+        // 3. Initial Load
+        loadFiles();
+    </script>
+</body>
+</html>
