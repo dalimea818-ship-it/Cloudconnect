@@ -8,14 +8,17 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. MONGODB CONNECTION
+// 1. DATABASE CONNECTION
+// Ensure MONGO_URI is set in your Render Environment Variables
 const MONGO_URI = process.env.MONGO_URI; 
+
 mongoose.connect(MONGO_URI)
     .then(() => console.log("✅ Connected to MongoDB Atlas"))
-    .catch(err => console.error("❌ DB Error:", err));
+    .catch(err => console.error("❌ Database connection error:", err));
 
 // 2. DATA MODELS
 const userSchema = new mongoose.Schema({
+    fullName: String,
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
 });
@@ -31,54 +34,75 @@ const User = mongoose.model('User', userSchema);
 const File = mongoose.model('File', fileSchema);
 
 // 3. MIDDLEWARE
-app.use(express.static('public'));
+// path.join(__dirname) ensures Render finds your 'public' folder correctly
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Setup local upload directory (temporary on Render)
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 const upload = multer({ dest: 'uploads/' });
 
-// 4. ROUTES
-
-// Serve HTML Pages
+// 4. UI ROUTES
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-// Auth Logic
+// 5. API ROUTES
+
+// Register User
 app.post('/api/register', async (req, res) => {
     try {
-        const hashedPassword = await bcrypt.hash(req.body.password, 10);
-        const newUser = new User({ email: req.body.email, password: hashedPassword });
+        const { fullName, email, password } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ fullName, email, password: hashedPassword });
         await newUser.save();
         res.redirect('/'); 
-    } catch (err) { res.status(400).send("Signup Failed"); }
-});
-
-app.post('/api/login', async (req, res) => {
-    const user = await User.findOne({ email: req.body.email });
-    if (user && await bcrypt.compare(req.body.password, user.password)) {
-        res.redirect('/dashboard');
-    } else {
-        res.status(401).send("Invalid Credentials");
+    } catch (err) {
+        res.status(400).send("Registration failed. Email may already be in use.");
     }
 });
 
-// File Logic
+// Login User
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (user && await bcrypt.compare(password, user.password)) {
+            res.redirect('/dashboard');
+        } else {
+            res.status(401).send("Invalid email or password.");
+        }
+    } catch (err) {
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+// Upload File
 app.post('/api/upload', upload.single('file'), async (req, res) => {
-    if (!req.file) return res.status(400).send('No file');
-    const newFile = new File({
-        originalName: req.file.originalname,
-        storagePath: req.file.path,
-        size: req.file.size
-    });
-    await newFile.save();
-    res.json({ name: req.file.originalname });
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file selected' });
+        const newFile = new File({
+            originalName: req.file.originalname,
+            storagePath: req.file.path,
+            size: req.file.size
+        });
+        await newFile.save();
+        res.status(200).json({ name: req.file.originalname });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to record file metadata.' });
+    }
 });
 
-// Get real files for Dashboard
+// Get Files for Dashboard
 app.get('/api/files', async (req, res) => {
-    const files = await File.find().sort({ uploadDate: -1 });
-    res.json(files);
+    try {
+        const files = await File.find().sort({ uploadDate: -1 });
+        res.json(files);
+    } catch (err) {
+        res.status(500).json({ error: 'Could not fetch files.' });
+    }
 });
 
-app.listen(PORT, () => console.log(`🚀 CloudConnect Live`));
+app.listen(PORT, () => console.log(`🚀 CloudConnect active on port ${PORT}`));
