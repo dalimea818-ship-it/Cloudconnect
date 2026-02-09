@@ -9,16 +9,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 1. DATABASE CONNECTION
-// Ensure MONGO_URI is set in your Render Environment Variables
+// Added a 5-second timeout so the site doesn't hang forever if the DB is down
 const MONGO_URI = process.env.MONGO_URI; 
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log("✅ Connected to MongoDB Atlas"))
-    .catch(err => console.error("❌ Database connection error:", err));
+mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 5000 
+})
+.then(() => console.log("✅ Connected to MongoDB Atlas"))
+.catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
 // 2. DATA MODELS
 const userSchema = new mongoose.Schema({
-    fullName: String,
+    fullName: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
 });
@@ -34,68 +36,92 @@ const User = mongoose.model('User', userSchema);
 const File = mongoose.model('File', fileSchema);
 
 // 3. MIDDLEWARE
-// path.join(__dirname) ensures Render finds your 'public' folder correctly
+// Using path.join(__dirname) is critical for Render to find your 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Setup local upload directory (temporary on Render)
+// Setup uploads directory
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 const upload = multer({ dest: 'uploads/' });
 
-// 4. UI ROUTES
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+// 4. PAGE ROUTES
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
 
 // 5. API ROUTES
 
-// Register User
+// User Registration
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
+        
+        // Basic check for existing user
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).send("Signup Failed: Email already in use.");
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ fullName, email, password: hashedPassword });
+        const newUser = new User({ 
+            fullName, 
+            email, 
+            password: hashedPassword 
+        });
+
         await newUser.save();
         res.redirect('/'); 
     } catch (err) {
-        res.status(400).send("Registration failed. Email may already be in use.");
+        console.error("Signup Error:", err);
+        res.status(500).send("Signup Failed: " + err.message);
     }
 });
 
-// Login User
+// User Login
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
+
         if (user && await bcrypt.compare(password, user.password)) {
             res.redirect('/dashboard');
         } else {
             res.status(401).send("Invalid email or password.");
         }
     } catch (err) {
-        res.status(500).send("Internal Server Error");
+        res.status(500).send("Login error occurred.");
     }
 });
 
-// Upload File
+// File Upload
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file selected' });
+
         const newFile = new File({
             originalName: req.file.originalname,
             storagePath: req.file.path,
             size: req.file.size
         });
+
         await newFile.save();
         res.status(200).json({ name: req.file.originalname });
     } catch (err) {
-        res.status(500).json({ error: 'Failed to record file metadata.' });
+        res.status(500).json({ error: 'Database error saving file info.' });
     }
 });
 
-// Get Files for Dashboard
+// Fetch File List
 app.get('/api/files', async (req, res) => {
     try {
         const files = await File.find().sort({ uploadDate: -1 });
@@ -105,4 +131,7 @@ app.get('/api/files', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 CloudConnect active on port ${PORT}`));
+// 6. START SERVER
+app.listen(PORT, () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
