@@ -8,17 +8,14 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. DATABASE CONNECTION
-// This uses the environment variable you set in Render
+// 1. MONGODB CONNECTION
 const MONGO_URI = process.env.MONGO_URI; 
-
 mongoose.connect(MONGO_URI)
     .then(() => console.log("✅ Connected to MongoDB Atlas"))
-    .catch(err => console.error("❌ Database connection error:", err));
+    .catch(err => console.error("❌ DB Error:", err));
 
-// 2. DATABASE MODELS
+// 2. DATA MODELS
 const userSchema = new mongoose.Schema({
-    fullName: String,
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
 });
@@ -33,77 +30,55 @@ const fileSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const File = mongoose.model('File', fileSchema);
 
-// 3. MIDDLEWARE & STORAGE SETTINGS
+// 3. MIDDLEWARE
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
 const upload = multer({ dest: 'uploads/' });
 
 // 4. ROUTES
 
-// --- UI Navigation ---
+// Serve HTML Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-// --- Authentication Logic ---
+// Auth Logic
 app.post('/api/register', async (req, res) => {
     try {
-        const { fullName, email, password } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const newUser = new User({ fullName, email, password: hashedPassword });
+        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+        const newUser = new User({ email: req.body.email, password: hashedPassword });
         await newUser.save();
-        
         res.redirect('/'); 
-    } catch (err) {
-        res.status(400).send("Registration failed. Email might already exist.");
-    }
+    } catch (err) { res.status(400).send("Signup Failed"); }
 });
 
 app.post('/api/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
-
-        if (user && await bcrypt.compare(password, user.password)) {
-            res.redirect('/dashboard');
-        } else {
-            res.status(401).send("Invalid email or password.");
-        }
-    } catch (err) {
-        res.status(500).send("Server error during login.");
+    const user = await User.findOne({ email: req.body.email });
+    if (user && await bcrypt.compare(req.body.password, user.password)) {
+        res.redirect('/dashboard');
+    } else {
+        res.status(401).send("Invalid Credentials");
     }
 });
 
-// --- File Management ---
+// File Logic
 app.post('/api/upload', upload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'No file selected' });
-
-        const newFile = new File({
-            originalName: req.file.originalname,
-            storagePath: req.file.path,
-            size: req.file.size
-        });
-
-        await newFile.save();
-        res.status(200).json({ name: req.file.originalname });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to save file metadata.' });
-    }
+    if (!req.file) return res.status(400).send('No file');
+    const newFile = new File({
+        originalName: req.file.originalname,
+        storagePath: req.file.path,
+        size: req.file.size
+    });
+    await newFile.save();
+    res.json({ name: req.file.originalname });
 });
 
-// Fetch all files for the dashboard
+// Get real files for Dashboard
 app.get('/api/files', async (req, res) => {
     const files = await File.find().sort({ uploadDate: -1 });
     res.json(files);
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 CloudConnect active on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 CloudConnect Live`));
