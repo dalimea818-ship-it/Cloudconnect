@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudConnect - Sign Up</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            margin: 0; 
+        }
+        .card { 
+            background: white; 
+            padding: 2.5rem; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+            width: 350px; 
+            text-align: center; 
+        }
+        h2 { 
+            color: #4a4a4a; 
+            margin-bottom: 0.5rem;
+        }
+        p.subtitle {
+            color: #777;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 14px;
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+        button:hover { 
+            background: #5a397e; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .footer-text { 
+            font-size: 14px; 
+            color: #666; 
+            margin-top: 20px;
+        }
+        a { 
+            color: #667eea; 
+            text-decoration: none; 
+            font-weight: bold; 
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Join CloudConnect</h2>
+        <p class="subtitle">Create your personal cloud vault</p>
+        
+        <form action="/api/register" method="POST">
+            <input type="text" name="fullName" placeholder="Full Name" required>
+            <input type="email" name="email" placeholder="Email Address" required>
+            <input type="password" name="password" placeholder="Create Password" required>
+            <button type="submit">Sign Up</button>
+        </form>
+        
+        <p class="footer-text">Already have an account? <a href="/">Login</a></p>
+    </div>
+</body>
+</html>
