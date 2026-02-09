@@ -8,22 +8,22 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. DATABASE CONNECTION
-// Added a 5-second timeout so the site doesn't hang forever if the DB is down
-const MONGO_URI = process.env.MONGO_URI; 
+// 1. MIDDLEWARE
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-mongoose.connect(MONGO_URI, {
-    serverSelectionTimeoutMS: 5000 
-})
-.then(() => console.log("✅ Connected to MongoDB Atlas"))
-.catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+// Setup uploads directory
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+const upload = multer({ dest: 'uploads/' });
 
 // 2. DATA MODELS
 const userSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
-});
+}, { bufferCommands: false }); // Stops Mongoose from "holding" commands if DB is shaky
 
 const fileSchema = new mongoose.Schema({
     originalName: String,
@@ -35,49 +35,23 @@ const fileSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const File = mongoose.model('File', fileSchema);
 
-// 3. MIDDLEWARE
-// Using path.join(__dirname) is critical for Render to find your 'public' folder
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 3. PAGE ROUTES
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-// Setup uploads directory
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-const upload = multer({ dest: 'uploads/' });
-
-// 4. PAGE ROUTES
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/signup', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// 5. API ROUTES
-
-// User Registration
+// 4. API ROUTES
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
         
-        // Basic check for existing user
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).send("Signup Failed: Email already in use.");
+        // We check the connection state before running the query
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(500).send("Signup Failed: Database is not ready. Please try again in a moment.");
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ 
-            fullName, 
-            email, 
-            password: hashedPassword 
-        });
+        const newUser = new User({ fullName, email, password: hashedPassword });
 
         await newUser.save();
         res.redirect('/'); 
@@ -87,51 +61,47 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// User Login
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-
         if (user && await bcrypt.compare(password, user.password)) {
             res.redirect('/dashboard');
         } else {
             res.status(401).send("Invalid email or password.");
         }
     } catch (err) {
-        res.status(500).send("Login error occurred.");
+        res.status(500).send("Login error.");
     }
 });
 
-// File Upload
-app.post('/api/upload', upload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'No file selected' });
-
-        const newFile = new File({
-            originalName: req.file.originalname,
-            storagePath: req.file.path,
-            size: req.file.size
-        });
-
-        await newFile.save();
-        res.status(200).json({ name: req.file.originalname });
-    } catch (err) {
-        res.status(500).json({ error: 'Database error saving file info.' });
-    }
-});
-
-// Fetch File List
 app.get('/api/files', async (req, res) => {
     try {
         const files = await File.find().sort({ uploadDate: -1 });
         res.json(files);
     } catch (err) {
-        res.status(500).json({ error: 'Could not fetch files.' });
+        res.status(500).json({ error: "Fetch error" });
     }
 });
 
-// 6. START SERVER
-app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+// 5. THE "STRICT" STARTUP LOGIC
+// We wrap the listen command inside the connection promise.
+// If the DB doesn't connect, the website won't even load, preventing timeouts.
+const MONGO_URI = process.env.MONGO_URI;
+
+mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 5000, 
+})
+.then(() => {
+    console.log("✅ Database Connected. Launching Server...");
+    app.listen(PORT, () => {
+        console.log(`🚀 CloudConnect active at port ${PORT}`);
+    });
+})
+.catch(err => {
+    console.error("❌ CRITICAL: Database failed to connect at startup.");
+    console.error("Error Detail:", err.message);
+    // On Render, this will cause a "Build Failed" or "Port Timeout" in logs,
+    // which is better than a hanging website.
+    process.exit(1); 
 });
