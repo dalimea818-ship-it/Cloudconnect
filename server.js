@@ -10,19 +10,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- 1. CLOUDINARY CONFIGURATION ---
-// This uses the "Root" credentials you found in your screenshot
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Setup Cloudinary storage for Multer
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'CloudConnect_Files',
-    resource_type: 'auto', // Support images, PDFs, etc.
+    resource_type: 'auto',
   },
 });
 
@@ -36,7 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 // --- 3. DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ Database Connected"))
-    .catch(err => console.error("❌ Database Connection Error:", err.message));
+    .catch(err => console.error("❌ Database Error:", err.message));
 
 // --- 4. DATA MODELS ---
 const User = mongoose.model('User', new mongoose.Schema({
@@ -47,72 +45,58 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 const FileModel = mongoose.model('File', new mongoose.Schema({
     name: String,
-    url: String, // Stores the permanent Cloudinary link
+    url: String,
     uploadedAt: { type: Date, default: Date.now }
 }));
 
 // --- 5. PAGE ROUTES ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
 // --- 6. API ROUTES ---
 
-// Signup
+// Signup & Login
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ fullName, email, password: hashedPassword });
-        await newUser.save();
+        await new User({ fullName, email, password: hashedPassword }).save();
         res.redirect('/'); 
-    } catch (err) {
-        res.status(500).send("Signup Failed");
-    }
+    } catch (err) { res.status(500).send("Signup Failed"); }
 });
 
-// Login
 app.post('/api/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
-        if (user && await bcrypt.compare(password, user.password)) {
+        const user = await User.findOne({ email: req.body.email });
+        if (user && await bcrypt.compare(req.body.password, user.password)) {
             res.redirect('/dashboard');
-        } else {
-            res.status(401).send("Invalid email or password.");
-        }
-    } catch (err) {
-        res.status(500).send("Login error.");
-    }
+        } else { res.status(401).send("Invalid credentials"); }
+    } catch (err) { res.status(500).send("Login error"); }
 });
 
-// File Upload (The "Link" to Cloudinary)
+// Upload
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: "No file selected" });
-
-        // req.file.path is the URL Cloudinary gives back to us
-        const newFile = new FileModel({
-            name: req.file.originalname,
-            url: req.file.path 
-        });
-
+        const newFile = new FileModel({ name: req.file.originalname, url: req.file.path });
         await newFile.save();
-        res.json({ success: true, url: req.file.path });
-    } catch (err) {
-        console.error("Cloudinary Upload Error:", err);
-        res.status(500).json({ error: "Upload failed" });
-    }
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Upload failed" }); }
 });
 
-// Fetch File List for the Dashboard
+// Fetch All Files
 app.get('/api/files', async (req, res) => {
+    const files = await FileModel.find().sort({ uploadedAt: -1 });
+    res.json(files);
+});
+
+// DELETE FILE ROUTE (New)
+app.delete('/api/files/:id', async (req, res) => {
     try {
-        const files = await FileModel.find().sort({ uploadedAt: -1 });
-        res.json(files);
+        await FileModel.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
     } catch (err) {
-        res.status(500).json([]);
+        res.status(500).json({ error: "Delete failed" });
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server active on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
