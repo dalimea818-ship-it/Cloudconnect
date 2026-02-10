@@ -1,61 +1,85 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const multer = require('multer');
 const path = require('path');
-const bcrypt = require('bcryptjs');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- MIDDLEWARE ---
-// This line allows your HTML to find dashboard.css in the public folder
+// 1. ENSURE UPLOADS FOLDER EXISTS
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    console.log("📁 Creating uploads folder...");
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- DATABASE ---
-const MONGO_URI = process.env.MONGO_URI;
+// 2. DATABASE
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ DB Connected"))
+    .catch(err => console.error("❌ DB Fail:", err.message));
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log("✅ Database Connected"))
-    .catch(err => console.error("❌ Database Connection Error:", err.message));
-
-// --- MODELS ---
-const User = mongoose.model('User', new mongoose.Schema({
-    fullName: { type: String, required: true },
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true }
+const FileModel = mongoose.model('File', new mongoose.Schema({
+    name: String,
+    path: String,
+    size: Number,
+    uploadedAt: { type: Date, default: Date.now }
 }));
 
-// --- ROUTES ---
-
-// Serve Pages
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
-
-// API: Login
-app.post('/api/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
-        if (user && await bcrypt.compare(password, user.password)) {
-            res.redirect('/dashboard');
-        } else {
-            res.status(401).send("Invalid credentials");
-        }
-    } catch (err) {
-        res.status(500).send("Login error");
+// 3. MULTER CONFIG (Adding limits to prevent crashes)
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
     }
 });
 
-// API: Check status (used for your "Error connecting" debug)
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// 4. THE UPLOAD ROUTE
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file received by server" });
+        }
+
+        const newFile = new FileModel({
+            name: req.file.originalname,
+            path: req.file.path,
+            size: req.file.size
+        });
+
+        await newFile.save();
+        console.log(`✅ File saved: ${req.file.originalname}`);
+        res.json({ success: true, file: req.file.originalname });
+
+    } catch (err) {
+        console.error("❌ Upload Route Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API to list files
 app.get('/api/files', async (req, res) => {
     try {
-        // Just returning an empty list for now so the dashboard doesn't show an error
-        res.json([]); 
+        const files = await FileModel.find().sort({ uploadedAt: -1 });
+        res.json(files);
     } catch (err) {
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json([]);
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server active on port ${PORT}`));
+// Page routes
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+
+app.listen(PORT, () => console.log(`🚀 Server on ${PORT}`));
