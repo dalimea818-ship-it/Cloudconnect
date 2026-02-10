@@ -10,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- 1. CLOUDINARY CONFIGURATION ---
+// This uses the "Root" credentials you found in your screenshot
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -21,7 +22,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'CloudConnect_Files',
-    resource_type: 'auto', // Allows images, PDFs, and other file types
+    resource_type: 'auto', // Support images, PDFs, etc.
   },
 });
 
@@ -34,8 +35,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // --- 3. DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("✅ Successfully connected to MongoDB"))
-    .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+    .then(() => console.log("✅ Database Connected"))
+    .catch(err => console.error("❌ Database Connection Error:", err.message));
 
 // --- 4. DATA MODELS ---
 const User = mongoose.model('User', new mongoose.Schema({
@@ -46,7 +47,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 const FileModel = mongoose.model('File', new mongoose.Schema({
     name: String,
-    url: String,
+    url: String, // Stores the permanent Cloudinary link
     uploadedAt: { type: Date, default: Date.now }
 }));
 
@@ -57,7 +58,7 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 
 // --- 6. API ROUTES ---
 
-// Signup Route
+// Signup
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
@@ -66,46 +67,45 @@ app.post('/api/register', async (req, res) => {
         await newUser.save();
         res.redirect('/'); 
     } catch (err) {
-        res.status(500).send("Signup Failed: " + err.message);
+        res.status(500).send("Signup Failed");
     }
 });
 
-// Login Route
+// Login
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-
         if (user && await bcrypt.compare(password, user.password)) {
-            console.log(`✅ ${email} logged in`);
             res.redirect('/dashboard');
         } else {
             res.status(401).send("Invalid email or password.");
         }
     } catch (err) {
-        res.status(500).send("Login error occurred.");
+        res.status(500).send("Login error.");
     }
 });
 
-// File Upload Route (Cloudinary)
+// File Upload (The "Link" to Cloudinary)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file selected" });
 
+        // req.file.path is the URL Cloudinary gives back to us
         const newFile = new FileModel({
             name: req.file.originalname,
-            url: req.file.path // This is the permanent Cloudinary URL
+            url: req.file.path 
         });
 
         await newFile.save();
         res.json({ success: true, url: req.file.path });
     } catch (err) {
-        console.error("Upload error:", err);
+        console.error("Cloudinary Upload Error:", err);
         res.status(500).json({ error: "Upload failed" });
     }
 });
 
-// Fetch File List Route
+// Fetch File List for the Dashboard
 app.get('/api/files', async (req, res) => {
     try {
         const files = await FileModel.find().sort({ uploadedAt: -1 });
@@ -115,4 +115,4 @@ app.get('/api/files', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server spinning on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server active on port ${PORT}`));
