@@ -20,7 +20,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'CloudConnect_Files',
-    resource_type: 'auto',
+    resource_type: 'auto', 
   },
 });
 
@@ -45,7 +45,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 const FileModel = mongoose.model('File', new mongoose.Schema({
     name: String,
-    url: String,
+    url: String, // Permanent Cloudinary URL
     uploadedAt: { type: Date, default: Date.now }
 }));
 
@@ -55,7 +55,6 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 
 // --- 6. API ROUTES ---
 
-// Signup & Login
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
@@ -74,25 +73,26 @@ app.post('/api/login', async (req, res) => {
     } catch (err) { res.status(500).send("Login error"); }
 });
 
-// Upload
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
-        const newFile = new FileModel({ name: req.file.originalname, url: req.file.path });
+        const newFile = new FileModel({ 
+            name: req.file.originalname, 
+            url: req.file.path // URL provided by Cloudinary
+        });
         await newFile.save();
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Upload failed" }); }
 });
 
-// Fetch All Files
 app.get('/api/files', async (req, res) => {
     const files = await FileModel.find().sort({ uploadedAt: -1 });
     res.json(files);
 });
 
-// DELETE FILE ROUTE (New)
+// DELETE FILE ROUTE
 app.delete('/api/files/:id', async (req, res) => {
     try {
-        await FileModel.findByIdAndDelete(req.params.id);
+        await FileModel.findByIdAndDelete(req.params.id); // Removes record from DB
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: "Delete failed" });
