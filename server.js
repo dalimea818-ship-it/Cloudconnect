@@ -10,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- 1. CLOUDINARY CONFIGURATION ---
+// These pull from your Render Environment Variables
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -45,16 +46,27 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 const FileModel = mongoose.model('File', new mongoose.Schema({
     name: String,
-    url: String, // Permanent Cloudinary URL
+    url: String, 
     uploadedAt: { type: Date, default: Date.now }
 }));
 
-// --- 5. PAGE ROUTES ---
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+// --- 5. PAGE ROUTES (The fix for your "Cannot GET" error is here) ---
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
 
 // --- 6. API ROUTES ---
 
+// Registration
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, password } = req.body;
@@ -64,39 +76,43 @@ app.post('/api/register', async (req, res) => {
     } catch (err) { res.status(500).send("Signup Failed"); }
 });
 
+// Login
 app.post('/api/login', async (req, res) => {
     try {
         const user = await User.findOne({ email: req.body.email });
         if (user && await bcrypt.compare(req.body.password, user.password)) {
             res.redirect('/dashboard');
-        } else { res.status(401).send("Invalid credentials"); }
+        } else { res.status(401).send("Invalid email or password"); }
     } catch (err) { res.status(500).send("Login error"); }
 });
 
+// Cloudinary File Upload
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
+        if (!req.file) return res.status(400).json({ error: "No file" });
         const newFile = new FileModel({ 
             name: req.file.originalname, 
-            url: req.file.path // URL provided by Cloudinary
+            url: req.file.path 
         });
         await newFile.save();
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Upload failed" }); }
 });
 
+// Get File List
 app.get('/api/files', async (req, res) => {
-    const files = await FileModel.find().sort({ uploadedAt: -1 });
-    res.json(files);
+    try {
+        const files = await FileModel.find().sort({ uploadedAt: -1 });
+        res.json(files);
+    } catch (err) { res.status(500).json([]); }
 });
 
-// DELETE FILE ROUTE
+// Delete File from Database
 app.delete('/api/files/:id', async (req, res) => {
     try {
-        await FileModel.findByIdAndDelete(req.params.id); // Removes record from DB
+        await FileModel.findByIdAndDelete(req.params.id);
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: "Delete failed" });
-    }
+    } catch (err) { res.status(500).json({ error: "Delete failed" }); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server live on port ${PORT}`));
