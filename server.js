@@ -6,58 +6,69 @@ const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// --- 1. MIDDLEWARE ---
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 1. Database Connection Logic
-// Using the MONGO_URI variable from Render settings
+// --- 2. DATABASE CONNECTION ---
+// Ensure MONGO_URI in Render is: mongodb+srv://cloudcoonect:admin@cloudcoonect.mqnkvfj.mongodb.net/CloudConnect
 const MONGO_URI = process.env.MONGO_URI;
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log("✅ SUCCESS: Connected to AWS MongoDB Cluster"))
-    .catch(err => {
-        console.error("❌ CONNECTION ERROR:", err.message);
-        // We log the error but keep the server alive so you can see logs
-    });
+    .catch(err => console.error("❌ CONNECTION ERROR:", err.message));
 
-// 2. User Schema
+// --- 3. DATA MODELS ---
 const userSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
-}, { bufferCommands: false }); // Prevents the 10-second timeout hang
+}, { bufferCommands: false });
 
 const User = mongoose.model('User', userSchema);
 
-// 3. API Routes
-app.post('/api/register', async (req, res) => {
-    try {
-        // Stop if database isn't ready
-        if (mongoose.connection.readyState !== 1) {
-            return res.status(503).send("Database not ready yet. Please try again in 5 seconds.");
-        }
-
-        const { fullName, email, password } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const newUser = new User({ fullName, email, password: hashedPassword });
-        await newUser.save();
-        
-        res.redirect('/'); 
-    } catch (err) {
-        console.error("Signup Error:", err.message);
-        res.status(500).send("Signup Failed: " + err.message);
-    }
-});
-
-// 4. Page Routes
+// --- 4. PAGE ROUTES ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server listening on port ${PORT}`);
+// --- 5. API ROUTES ---
+
+// Signup Logic
+app.post('/api/register', async (req, res) => {
+    try {
+        const { fullName, email, password } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ fullName, email, password: hashedPassword });
+        await newUser.save();
+        res.redirect('/'); 
+    } catch (err) {
+        res.status(500).send("Signup Failed: " + err.message);
+    }
 });
 
+// Login Logic (Fixes "Cannot POST /api/login")
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(401).send("User not found. Please sign up first.");
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (isMatch) {
+            console.log(`✅ ${email} logged in successfully`);
+            res.redirect('/dashboard');
+        } else {
+            res.status(401).send("Invalid password.");
+        }
+    } catch (err) {
+        console.error("Login error:", err);
+        res.status(500).send("Server error during login.");
+    }
+});
+
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
