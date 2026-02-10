@@ -6,69 +6,56 @@ const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- 1. MIDDLEWARE ---
+// --- MIDDLEWARE ---
+// This line allows your HTML to find dashboard.css in the public folder
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- 2. DATABASE CONNECTION ---
-// Ensure MONGO_URI in Render is: mongodb+srv://cloudcoonect:admin@cloudcoonect.mqnkvfj.mongodb.net/CloudConnect
+// --- DATABASE ---
 const MONGO_URI = process.env.MONGO_URI;
 
 mongoose.connect(MONGO_URI)
-    .then(() => console.log("✅ SUCCESS: Connected to AWS MongoDB Cluster"))
-    .catch(err => console.error("❌ CONNECTION ERROR:", err.message));
+    .then(() => console.log("✅ Database Connected"))
+    .catch(err => console.error("❌ Database Connection Error:", err.message));
 
-// --- 3. DATA MODELS ---
-const userSchema = new mongoose.Schema({
+// --- MODELS ---
+const User = mongoose.model('User', new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true }
-}, { bufferCommands: false });
+}));
 
-const User = mongoose.model('User', userSchema);
+// --- ROUTES ---
 
-// --- 4. PAGE ROUTES ---
+// Serve Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-// --- 5. API ROUTES ---
-
-// Signup Logic
-app.post('/api/register', async (req, res) => {
-    try {
-        const { fullName, email, password } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ fullName, email, password: hashedPassword });
-        await newUser.save();
-        res.redirect('/'); 
-    } catch (err) {
-        res.status(500).send("Signup Failed: " + err.message);
-    }
-});
-
-// Login Logic (Fixes "Cannot POST /api/login")
+// API: Login
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-
-        if (!user) {
-            return res.status(401).send("User not found. Please sign up first.");
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (isMatch) {
-            console.log(`✅ ${email} logged in successfully`);
+        if (user && await bcrypt.compare(password, user.password)) {
             res.redirect('/dashboard');
         } else {
-            res.status(401).send("Invalid password.");
+            res.status(401).send("Invalid credentials");
         }
     } catch (err) {
-        console.error("Login error:", err);
-        res.status(500).send("Server error during login.");
+        res.status(500).send("Login error");
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// API: Check status (used for your "Error connecting" debug)
+app.get('/api/files', async (req, res) => {
+    try {
+        // Just returning an empty list for now so the dashboard doesn't show an error
+        res.json([]); 
+    } catch (err) {
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+app.listen(PORT, () => console.log(`🚀 Server active on port ${PORT}`));
