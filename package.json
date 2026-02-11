@@ -1,7 +1,7 @@
 {
   "name": "cloudconnect",
   "version": "1.0.0",
-  "description": "Cloud storage application",
+  "description": "Secure cloud storage with user-specific privacy and image previews",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,11 +10,14 @@
     "bcryptjs": "^2.4.3",
     "cloudinary": "latest",
     "express": "^4.18.2",
+    "express-session": "latest",
     "mongoose": "^7.0.0",
     "multer": "latest",
     "multer-storage-cloudinary": "latest"
   },
   "engines": {
     "node": "18.x"
-  }
+  },
+  "author": "",
+  "license": "ISC"
 }
