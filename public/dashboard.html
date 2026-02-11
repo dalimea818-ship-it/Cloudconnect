@@ -3,153 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudConnect - Dashboard</title>
-    <style>
-        :root {
-            --primary: #4a90e2;
-            --danger: #ff4d4d;
-            --success: #28a745;
-            --bg: #f4f7f6;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg);
-            margin: 0;
-            padding: 20px;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding: 10px 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .upload-section {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        #fileGrid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .file-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-
-        .file-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .file-icon {
-            font-size: 50px;
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .file-name {
-            font-weight: bold;
-            font-size: 14px;
-            margin-bottom: 15px;
-            word-break: break-all;
-            color: #333;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .btn {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-            text-decoration: none;
-            color: white;
-            transition: opacity 0.2s;
-        }
-
-        .btn:hover {
-            opacity: 0.8;
-        }
-
-        .btn-download { background-color: var(--success); }
-        .btn-delete { background-color: var(--danger); }
-        .btn-upload { background-color: var(--primary); padding: 10px 20px; font-size: 14px; }
-
-        input[type="file"] {
-            margin-bottom: 10px;
-        }
-    </style>
+    <title>CloudConnect - My Private Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
 
     <div class="header">
         <h1>CloudConnect</h1>
-        <button onclick="window.location.href='/'" style="border:none; background:none; cursor:pointer; color:var(--primary);">Logout</button>
+        <div class="user-controls">
+            <button class="btn btn-delete" onclick="logout()">Logout</button>
+        </div>
     </div>
 
-    <div class="upload-section">
-        <h3>Upload New File</h3>
-        <input type="file" id="fileInput">
-        <button class="btn btn-upload" onclick="uploadFile()">Upload to Cloud</button>
-        <p id="uploadStatus"></p>
-    </div>
-
-    <div id="fileGrid">
+    <div class="container">
+        <div class="upload-section">
+            <h3>Upload a Private File</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput">
+            </div>
+            <button class="btn btn-upload" onclick="uploadFile()">Upload to My Cloud</button>
+            <p id="uploadStatus"></p>
         </div>
 
+        <div id="fileGrid">
+            </div>
+    </div>
+
     <script>
-        // 1. Load files from the database on page load
+        // 1. Load ONLY this user's files from the server
         async function loadFiles() {
             const grid = document.getElementById('fileGrid');
-            grid.innerHTML = '<p>Loading files...</p>';
+            grid.innerHTML = '<p>Loading your private files...</p>';
             
             try {
                 const response = await fetch('/api/files');
                 const files = await response.json();
                 
                 if (files.length === 0) {
-                    grid.innerHTML = '<p>No files found. Start by uploading one!</p>';
+                    grid.innerHTML = '<p>Your cloud is empty. Upload something!</p>';
                     return;
                 }
 
-                grid.innerHTML = files.map(file => `
-                    <div class="file-card">
-                        <span class="file-icon">📄</span>
-                        <div class="file-name">${file.name}</div>
-                        <div class="button-group">
-                            <a href="${file.url}" target="_blank" class="btn btn-download">Download</a>
-                            <button onclick="deleteFile('${file._id}')" class="btn btn-delete">Delete</button>
+                grid.innerHTML = files.map(file => {
+                    // Logic to check if the file is an image for the preview feature
+                    const isImage = /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(file.name);
+                    
+                    return `
+                        <div class="file-card">
+                            <div onclick="window.open('${file.url}', '_blank')" style="cursor:pointer">
+                                ${isImage ? 
+                                    `<img src="${file.url}" class="img-preview" style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:10px;">` : 
+                                    `<span class="file-icon">📄</span>`
+                                }
+                                <div class="file-name">${file.name}</div>
+                            </div>
+                            <div class="button-group">
+                                <a href="${file.url}" target="_blank" class="btn btn-download">Download</a>
+                                <button onclick="deleteFile('${file._id}')" class="btn btn-delete">Delete</button>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             } catch (err) {
-                grid.innerHTML = '<p style="color:red;">Error connecting to server.</p>';
+                grid.innerHTML = '<p style="color:red;">Error connecting to your cloud.</p>';
             }
         }
 
-        // 2. Handle File Upload
+        // 2. Upload file and tag it to the current user session
         async function uploadFile() {
             const fileInput = document.getElementById('fileInput');
             const status = document.getElementById('uploadStatus');
@@ -161,8 +81,7 @@
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
-
-            status.innerText = "Uploading to Cloudinary...";
+            status.innerText = "Securing and uploading...";
 
             try {
                 const response = await fetch('/api/upload', {
@@ -174,26 +93,26 @@
 
                 if (result.success) {
                     status.innerText = "Upload successful!";
-                    fileInput.value = ''; // Clear input
-                    loadFiles(); // Refresh the list
+                    fileInput.value = ''; 
+                    loadFiles(); 
                 } else {
-                    status.innerText = "Upload failed.";
+                    status.innerText = "Upload failed. Please try again.";
                 }
             } catch (err) {
                 status.innerText = "Error uploading file.";
             }
         }
 
-        // 3. Handle File Deletion
+        // 3. Delete file from this user's account
         async function deleteFile(id) {
-            if (confirm("Are you sure you want to delete this file?")) {
+            if (confirm("Permanently delete this file?")) {
                 try {
                     const response = await fetch(`/api/files/${id}`, {
                         method: 'DELETE'
                     });
 
                     if (response.ok) {
-                        loadFiles(); // Refresh the list
+                        loadFiles();
                     } else {
                         alert("Delete failed.");
                     }
@@ -201,6 +120,11 @@
                     alert("Error deleting file.");
                 }
             }
+        }
+
+        // 4. Logout (Redirects to home)
+        function logout() {
+            window.location.href = '/';
         }
 
         // Initial Load
