@@ -1,226 +1,173 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const path = require('path');
 const bcrypt = require('bcryptjs');
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const session = require('express-session');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-/* ========================================
-   CLOUDINARY CONFIG
-======================================== */
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'CloudConnect_Files',
-    resource_type: 'auto'
-  }
-});
-
-const upload = multer({ storage });
-
-/* ========================================
-   MIDDLEWARE
-======================================== */
-
-app.use(express.static(path.join(__dirname, 'public')));
+// =============================
+// Middleware
+// =============================
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
 
-app.use(session({
-  secret: 'cloudconnect-secret-key',
-  resave: false,
-  saveUninitialized: false
-}));
+// =============================
+// MongoDB Connection
+// =============================
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log("MongoDB Connected"))
+.catch(err => console.log(err));
 
-/* ========================================
-   DATABASE
-======================================== */
+// =============================
+// Models
+// =============================
+const UserSchema = new mongoose.Schema({
+    username: String,
+    password: String
+});
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.log("DB Error:", err));
+const FileSchema = new mongoose.Schema({
+    userId: String,
+    name: String,
+    type: String, // file or folder
+    parent: { type: String, default: null },
+    createdAt: { type: Date, default: Date.now }
+});
 
-/* ========================================
-   MODELS
-======================================== */
+const User = mongoose.model('User', UserSchema);
+const File = mongoose.model('File', FileSchema);
 
-// User Model
-const User = mongoose.model('User', new mongoose.Schema({
-  fullName: { type: String, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true }
-}));
+// =============================
+// Auth Middleware
+// =============================
+function auth(req, res, next) {
+    const token = req.headers.authorization;
+    if (!token) return res.status(401).json({ message: "No token" });
 
-// Folder Model
-const Folder = mongoose.model('Folder', new mongoose.Schema({
-  name: { type: String, required: true },
-  owner: { type: String, required: true },
-  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
-  createdAt: { type: Date, default: Date.now }
-}));
-
-// File Model
-const FileModel = mongoose.model('File', new mongoose.Schema({
-  name: String,
-  url: String,
-  owner: String,
-  folder: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
-  uploadedAt: { type: Date, default: Date.now }
-}));
-
-/* ========================================
-   AUTH MIDDLEWARE
-======================================== */
-
-function requireAuth(req, res, next) {
-  if (!req.session.userEmail) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch {
+        res.status(401).json({ message: "Invalid token" });
+    }
 }
 
-/* ========================================
-   PAGE ROUTES
-======================================== */
+// =============================
+// Routes
+// =============================
 
-app.get('/', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'login.html'))
-);
-
-app.get('/signup', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'signup.html'))
-);
-
-app.get('/dashboard', (req, res) => {
-  if (!req.session.userEmail) return res.redirect('/');
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+// Default route -> login page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-/* ========================================
-   AUTH API
-======================================== */
+// =============================
+// Signup
+// =============================
+app.post('/api/signup', async (req, res) => {
+    const { username, password } = req.body;
 
-// Register
-app.post('/api/register', async (req, res) => {
-  try {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    await new User({
-      fullName: req.body.fullName,
-      email: req.body.email,
-      password: hashedPassword
-    }).save();
+    const existingUser = await User.findOne({ username });
+    if (existingUser)
+        return res.status(400).json({ message: "User already exists" });
 
-    res.redirect('/');
-  } catch (err) {
-    res.status(400).send("User already exists");
-  }
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = new User({
+        username,
+        password: hashedPassword
+    });
+
+    await newUser.save();
+
+    res.json({ message: "User created" });
 });
 
+// =============================
 // Login
+// =============================
 app.post('/api/login', async (req, res) => {
-  const user = await User.findOne({ email: req.body.email });
+    const { username, password } = req.body;
 
-  if (user && await bcrypt.compare(req.body.password, user.password)) {
-    req.session.userEmail = user.email;
-    res.redirect('/dashboard');
-  } else {
-    res.status(401).send("Invalid login");
-  }
+    const user = await User.findOne({ username });
+    if (!user)
+        return res.status(400).json({ message: "User not found" });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid)
+        return res.status(400).json({ message: "Invalid password" });
+
+    const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+    );
+
+    res.json({ token });
 });
 
-// Logout
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
+// =============================
+// Get Files
+// =============================
+app.get('/api/files', auth, async (req, res) => {
+    const files = await File.find({ userId: req.user.id });
+    res.json(files);
 });
 
-/* ========================================
-   FOLDER ROUTES
-======================================== */
-
+// =============================
 // Create Folder
-app.post('/api/folders', requireAuth, async (req, res) => {
-  const { name, parent } = req.body;
+// =============================
+app.post('/api/folder', auth, async (req, res) => {
+    const { name, parent } = req.body;
 
-  const folder = new Folder({
-    name,
-    owner: req.session.userEmail,
-    parent: parent || null
-  });
+    const folder = new File({
+        userId: req.user.id,
+        name,
+        type: "folder",
+        parent: parent || null
+    });
 
-  await folder.save();
-  res.json({ success: true, folder });
+    await folder.save();
+    res.json(folder);
 });
 
-// Delete Folder (recursive clean basic level)
-app.delete('/api/folders/:id', requireAuth, async (req, res) => {
-  const folderId = req.params.id;
+// =============================
+// Create File (metadata only)
+// =============================
+app.post('/api/file', auth, async (req, res) => {
+    const { name, parent } = req.body;
 
-  await FileModel.deleteMany({ folder: folderId });
-  await Folder.deleteMany({ parent: folderId });
-  await Folder.findByIdAndDelete(folderId);
+    const file = new File({
+        userId: req.user.id,
+        name,
+        type: "file",
+        parent: parent || null
+    });
 
-  res.json({ success: true });
+    await file.save();
+    res.json(file);
 });
 
-/* ========================================
-   FILE ROUTES
-======================================== */
-
-// Upload File
-app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => {
-
-  const newFile = new FileModel({
-    name: req.file.originalname,
-    url: req.file.path,
-    owner: req.session.userEmail,
-    folder: req.body.folder || null
-  });
-
-  await newFile.save();
-  res.json({ success: true });
+// =============================
+// Delete File / Folder
+// =============================
+app.delete('/api/file/:id', auth, async (req, res) => {
+    await File.deleteOne({ _id: req.params.id, userId: req.user.id });
+    res.json({ message: "Deleted" });
 });
 
-// Get Files + Folders
-app.get('/api/files', requireAuth, async (req, res) => {
-  const { folder } = req.query;
-
-  const folders = await Folder.find({
-    owner: req.session.userEmail,
-    parent: folder || null
-  });
-
-  const files = await FileModel.find({
-    owner: req.session.userEmail,
-    folder: folder || null
-  }).sort({ uploadedAt: -1 });
-
-  res.json({ folders, files });
-});
-
-// Delete File
-app.delete('/api/files/:id', requireAuth, async (req, res) => {
-  await FileModel.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
-});
-
-/* ========================================
-   START SERVER
-======================================== */
+// =============================
+// Start Server (Render Safe)
+// =============================
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 CloudConnect Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
