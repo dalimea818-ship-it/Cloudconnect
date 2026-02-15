@@ -1,117 +1,93 @@
-/* Color Variables */
 :root {
-    --primary-color: #4a90e2;
-    --primary-hover: #357abd;
-    --danger-color: #ff4d4d;
-    --danger-hover: #cc0000;
-    --success-color: #28a745;
-    --success-hover: #218838;
-    --text-dark: #333333;
-    --text-light: #666666;
-    --bg-gray: #f8f9fa;
-    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --primary: #4a90e2;
+    --primary-dark: #357abd;
+    --danger: #ff4d4d;
+    --success: #28a745;
+    --bg: #f0f2f5;
+    --card-bg: #ffffff;
+    --text: #333;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Global Styles */
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: var(--bg-gray);
-    color: var(--text-dark);
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg);
     margin: 0;
-    padding: 0;
+    color: var(--text);
 }
 
-/* Header Section */
 .header {
-    background-color: white;
-    padding: 1rem 2rem;
+    background: white;
+    padding: 1rem 5%;
     display: flex;
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--shadow);
 }
 
-.header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: var(--primary-color);
-}
-
-/* Layout Container */
 .container {
-    max-width: 1100px;
-    margin: 2rem auto;
-    padding: 0 1rem;
+    padding: 2rem 5%;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-/* Breadcrumb Navigation */
 #breadcrumb {
+    margin-bottom: 1.5rem;
+    padding: 10px 15px;
     background: white;
-    padding: 10px 20px;
     border-radius: 8px;
-    margin-bottom: 20px;
     box-shadow: var(--shadow);
-    display: flex;
-    gap: 10px;
-    align-items: center;
+    font-size: 0.9rem;
 }
 
-/* Upload & Actions Box */
 .upload-section {
     background: white;
-    padding: 1.5rem;
+    padding: 20px;
     border-radius: 12px;
-    text-align: center;
-    box-shadow: var(--shadow);
     margin-bottom: 2rem;
     display: flex;
-    flex-wrap: wrap;
     gap: 15px;
-    justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow);
 }
 
-/* Grid System */
 #fileGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
 }
 
-/* File/Folder Card Styling */
 .file-card {
-    background: white;
+    background: var(--card-bg);
+    padding: 20px;
     border-radius: 12px;
-    padding: 1.2rem;
     text-align: center;
     box-shadow: var(--shadow);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    border: 1px solid transparent;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid transparent;
 }
 
 .file-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
-    border-color: var(--primary-color);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    border-color: var(--primary);
 }
 
 .back-card {
-    background-color: #eee;
+    background: #e9ecef;
     cursor: pointer;
 }
 
 .file-icon {
-    font-size: 3.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 3rem;
+    margin-bottom: 10px;
     display: block;
 }
 
 .img-preview {
     width: 100%;
-    height: 120px;
+    height: 110px;
     object-fit: cover;
     border-radius: 8px;
     margin-bottom: 10px;
@@ -119,45 +95,34 @@ body {
 
 .file-name {
     font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-dark);
-    margin-bottom: 1rem;
-    word-break: break-all;
-    height: 2.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 15px;
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* Button Grouping */
 .button-group {
     display: flex;
-    gap: 0.4rem;
-    justify-content: center;
+    gap: 8px;
 }
 
-/* Generic Button Style */
 .btn {
-    padding: 0.5rem 0.8rem;
+    padding: 8px 12px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-weight: 500;
-    font-size: 0.8rem;
-    text-decoration: none;
-    transition: opacity 0.2s;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: white;
+    text-decoration: none;
+    flex: 1;
 }
 
-.btn:hover { opacity: 0.85; }
+.btn-upload { background: var(--primary); }
+.btn-download { background: var(--success); }
+.btn-delete { background: var(--danger); }
 
-.btn-upload { background-color: var(--primary-color); }
-.btn-download { background-color: var(--success-color); flex: 1; }
-.btn-delete { background-color: var(--danger-color); flex: 1; }
-
-/* Mobile View */
 @media (max-width: 600px) {
-    #fileGrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .upload-section { flex-direction: column; }
+    .upload-section { flex-direction: column; align-items: stretch; }
 }
