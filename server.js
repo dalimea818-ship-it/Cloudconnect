@@ -19,7 +19,7 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: { folder: 'CloudConnect_Files', resource_type: 'auto' },
+    params: { folder: 'CloudConnect_Glass', resource_type: 'auto' },
 });
 const upload = multer({ storage: storage });
 
@@ -27,52 +27,38 @@ const upload = multer({ storage: storage });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.set('trust proxy', 1);
 
-app.set('trust proxy', 1); 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'dev_secret_key',
+    secret: 'liquid-glass-secret',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: process.env.NODE_ENV === "production" }
 }));
 
 // --- 3. DATABASE ---
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("✅ DB Connected"))
-    .catch(err => console.error("❌ DB Connection Error:", err));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ Glass Cloud Connected"));
 
-// --- 4. MODELS ---
-const User = mongoose.model('User', new mongoose.Schema({
-    fullName: { type: String, required: true },
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true }
-}));
-
-const ItemModel = mongoose.model('Item', new mongoose.Schema({
+const Item = mongoose.model('Item', new mongoose.Schema({
     name: String,
-    url: String, 
-    type: { type: String, enum: ['file', 'folder'], required: true },
+    url: String,
+    type: { type: String, enum: ['file', 'folder'] },
     owner: String,
     parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null },
-    uploadedAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now }
 }));
 
-// --- 5. PAGE ROUTES ---
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
-app.get('/dashboard', (req, res) => {
-    if (!req.session.userEmail) return res.redirect('/');
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
+const User = mongoose.model('User', new mongoose.Schema({
+    fullName: String,
+    email: { type: String, unique: true },
+    password: { type: String }
+}));
 
-// --- 6. API ROUTES ---
-
+// --- 4. AUTH ROUTES ---
 app.post('/api/register', async (req, res) => {
-    try {
-        const hashedPassword = await bcrypt.hash(req.body.password, 10);
-        await new User({ ...req.body, password: hashedPassword }).save();
-        res.redirect('/');
-    } catch (err) { res.status(400).send("Signup failed"); }
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    await new User({ ...req.body, password: hashedPassword }).save();
+    res.redirect('/');
 });
 
 app.post('/api/login', async (req, res) => {
@@ -83,57 +69,54 @@ app.post('/api/login', async (req, res) => {
     } else { res.status(401).send("Invalid login"); }
 });
 
-// Fetch items (Files + Folders) for a specific parent
+app.get('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+});
+
+// --- 5. FILE & FOLDER API ---
 app.get('/api/items', async (req, res) => {
-    if (!req.session.userEmail) return res.status(401).json([]);
+    if (!req.session.userEmail) return res.json([]);
     const parentId = req.query.parentId === 'null' || !req.query.parentId ? null : req.query.parentId;
-    try {
-        const items = await ItemModel.find({ 
-            owner: req.session.userEmail, 
-            parentId: parentId 
-        }).sort({ type: 1, name: 1 });
-        res.json(items);
-    } catch (err) { res.status(500).json([]); }
+    const items = await Item.find({ owner: req.session.userEmail, parentId }).sort({ type: 1, name: 1 });
+    res.json(items);
 });
 
-// Create Folder
 app.post('/api/folder', async (req, res) => {
-    if (!req.session.userEmail) return res.status(401).send();
-    try {
-        const folder = new ItemModel({
-            name: req.body.name,
-            type: 'folder',
-            owner: req.session.userEmail,
-            parentId: req.body.parentId || null
-        });
-        await folder.save();
-        res.json({ success: true });
-    } catch (err) { res.status(500).send(); }
+    const folder = new Item({
+        name: req.body.name,
+        type: 'folder',
+        owner: req.session.userEmail,
+        parentId: req.body.parentId || null
+    });
+    await folder.save();
+    res.json({ success: true });
 });
 
-// Upload File
-app.post('/api/upload', upload.single('file'), async (req, res) => {
-    if (!req.session.userEmail) return res.status(401).send();
-    try {
-        const newFile = new ItemModel({
-            name: req.file.originalname,
-            url: req.file.path,
-            type: 'file',
-            owner: req.session.userEmail,
-            parentId: req.body.parentId === 'null' ? null : req.body.parentId
-        });
-        await newFile.save();
-        res.json({ success: true });
-    } catch (err) { res.status(500).send(); }
+app.post('/api/upload', upload.array('files'), async (req, res) => {
+    const parentId = req.body.parentId === 'null' || !req.body.parentId ? null : req.body.parentId;
+    const uploads = req.files.map(file => new Item({
+        name: file.originalname,
+        url: file.path,
+        type: 'file',
+        owner: req.session.userEmail,
+        parentId: parentId
+    }).save());
+    await Promise.all(uploads);
+    res.json({ success: true });
 });
 
-// Delete Item
 app.delete('/api/items/:id', async (req, res) => {
-    if (!req.session.userEmail) return res.status(401).send();
-    try {
-        await ItemModel.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
-    } catch (err) { res.status(500).send(); }
+    await Item.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
 });
 
-app.listen(PORT, () => console.log(`🚀 Server Running on Port ${PORT}`));
+// Page catch-alls
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
+app.get('/dashboard', (req, res) => {
+    if (!req.session.userEmail) return res.redirect('/');
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+app.listen(PORT, () => console.log(`🚀 Liquid Glass Server active on ${PORT}`));
