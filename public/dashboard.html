@@ -3,69 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudConnect - Files</title>
+    <title>CloudConnect - Glass Drive</title>
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
+
     <div class="header">
         <h1>CloudConnect</h1>
-        <button class="btn btn-delete" onclick="logout()">Logout</button>
+        <button onclick="window.location.href='/api/logout'" style="background:none; border:none; cursor:pointer; font-weight:600;">Sign Out</button>
     </div>
 
     <div class="container">
-        <div id="breadcrumb" style="margin-bottom: 20px; font-weight: bold;">
-            <span onclick="navigateTo(null)" style="cursor:pointer; color:var(--primary-color)">🏠 Root</span>
-        </div>
-
-        <div class="upload-section">
-            <button class="btn btn-upload" onclick="createFolder()">+ New Folder</button>
-            <input type="file" id="fileInput">
-            <button class="btn btn-upload" onclick="uploadFile()">Upload File</button>
-            <p id="uploadStatus"></p>
+        <div id="breadcrumb" class="glass-morph">
+            <span onclick="navigateToRoot()" style="cursor:pointer; color:var(--accent)">🏠 My Cloud</span>
         </div>
 
         <div id="fileGrid"></div>
     </div>
 
+    <div class="upload-section">
+        <div class="dropdown">
+            <button class="main-plus-btn" onclick="toggleDropdown()">+</button>
+            <div id="newMenu" class="dropdown-content">
+                <label for="multiUpload" style="cursor:pointer;">📄 Upload Files</label>
+                <input type="file" id="multiUpload" multiple style="display:none" onchange="handleUpload(this)">
+                <a href="#" onclick="createFolder()">📂 New Folder</a>
+            </div>
+        </div>
+        <div id="uploadStatus" style="text-align:right; margin-top:10px; font-size:12px; font-weight:bold;"></div>
+    </div>
+
     <script>
         let currentFolderId = null;
+        let historyStack = [];
+
+        function toggleDropdown() {
+            document.getElementById("newMenu").classList.toggle("show");
+        }
 
         async function loadItems() {
             const grid = document.getElementById('fileGrid');
-            grid.innerHTML = '<p>Loading...</p>';
-            
             const response = await fetch(`/api/items?parentId=${currentFolderId}`);
             const items = await response.json();
             
-            grid.innerHTML = items.map(item => {
+            let html = "";
+            if (currentFolderId) {
+                html += `<div class="file-card glass-morph" onclick="goBack()" style="cursor:pointer; opacity:0.7;">
+                            <span class="file-icon">🔙</span><div class="file-name">Back</div>
+                         </div>`;
+            }
+
+            html += items.map(item => {
                 const isFolder = item.type === 'folder';
-                const isImage = /\.(jpg|jpeg|png|webp)$/i.test(item.name);
-                
+                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(item.name);
                 return `
-                    <div class="file-card">
-                        <div onclick="${isFolder ? `MapsTo('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}" style="cursor:pointer">
+                    <div class="file-card glass-morph">
+                        <div onclick="${isFolder ? `MapsIn('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}" style="cursor:pointer">
                             ${isFolder ? `<span class="file-icon">📂</span>` : 
-                                (isImage ? `<img src="${item.url}" class="img-preview" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">` : `<span class="file-icon">📄</span>`)
-                            }
+                              (isImage ? `<img src="${item.url}" class="img-preview">` : `<span class="file-icon">📄</span>`)}
                             <div class="file-name">${item.name}</div>
                         </div>
-                        <div class="button-group">
-                            ${!isFolder ? `<a href="${item.url}" target="_blank" class="btn btn-download">Download</a>` : ''}
-                            <button onclick="deleteItem('${item._id}')" class="btn btn-delete">Delete</button>
-                        </div>
-                    </div>
-                `;
+                        <button onclick="deleteItem('${item._id}')" class="del-btn">Delete</button>
+                    </div>`;
             }).join('');
+            grid.innerHTML = html;
         }
 
-        function navigateTo(id, name) {
+        function navigateIn(id, name) {
+            historyStack.push({ id: currentFolderId, name: name });
             currentFolderId = id;
+            document.getElementById('breadcrumb').innerHTML += ` <span style="color:#888">/</span> ${name}`;
+            loadItems();
+        }
+
+        function goBack() {
+            const last = historyStack.pop();
+            currentFolderId = last.id;
+            // Update Breadcrumb
             const bc = document.getElementById('breadcrumb');
-            if (!id) {
-                bc.innerHTML = '<span onclick="navigateTo(null)" style="cursor:pointer; color:var(--primary-color)">🏠 Root</span>';
-            } else {
-                bc.innerHTML += ` > <span>${name}</span>`;
-            }
+            const parts = bc.innerHTML.split(' <span style="color:#888">/</span> ');
+            parts.pop();
+            bc.innerHTML = parts.join(' <span style="color:#888">/</span> ');
+            loadItems();
+        }
+
+        function navigateToRoot() {
+            currentFolderId = null;
+            historyStack = [];
+            document.getElementById('breadcrumb').innerHTML = `<span onclick="navigateToRoot()" style="cursor:pointer; color:var(--accent)">🏠 My Cloud</span>`;
+            loadItems();
+        }
+
+        async function handleUpload(input) {
+            if (!input.files.length) return;
+            const status = document.getElementById('uploadStatus');
+            const formData = new FormData();
+            for (let f of input.files) formData.append('files', f);
+            formData.append('parentId', currentFolderId);
+
+            status.innerText = "Processing Liquid Upload...";
+            await fetch('/api/upload', { method: 'POST', body: formData });
+            status.innerText = "";
             loadItems();
         }
 
@@ -80,29 +118,14 @@
             loadItems();
         }
 
-        async function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('parentId', currentFolderId);
-
-            document.getElementById('uploadStatus').innerText = "Uploading...";
-            const response = await fetch('/api/upload', { method: 'POST', body: formData });
-            if (response.ok) {
-                fileInput.value = '';
-                document.getElementById('uploadStatus').innerText = "";
-                loadItems();
-            }
-        }
-
         async function deleteItem(id) {
-            if (confirm("Delete this?")) {
+            if (confirm("Delete permanently?")) {
                 await fetch(`/api/items/${id}`, { method: 'DELETE' });
                 loadItems();
             }
         }
 
-        function logout() { window.location.href = '/'; }
+        window.onclick = e => { if (!e.target.matches('.main-plus-btn')) document.getElementById("newMenu").classList.remove("show"); }
         loadItems();
     </script>
 </body>
