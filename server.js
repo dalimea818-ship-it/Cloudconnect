@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
@@ -10,7 +10,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 
-// --- Cloudinary Configuration ---
+// --- 1. Cloudinary Configuration ---
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -26,17 +26,25 @@ const storage = new CloudinaryStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- Middleware ---
+// --- 2. Middleware & Session Setup ---
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// --- MongoDB Connection ---
+app.use(session({
+    secret: 'keyboard_cat_secret', // You can change this to any string
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false } // Set to true if using HTTPS/Render (but false is safer for testing)
+}));
+
+// --- 3. MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ DB Error:", err));
 
-// --- Models ---
+// --- 4. Models ---
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true },
     password: { type: String }
@@ -45,29 +53,22 @@ const User = mongoose.model('User', new mongoose.Schema({
 const File = mongoose.model('File', new mongoose.Schema({
     userId: String,
     name: String,
-    url: String, // Added back for Cloudinary link
+    url: String,
     type: { type: String, default: 'file' },
     createdAt: { type: Date, default: Date.now }
 }));
 
-// --- Auth Middleware ---
-function auth(req, res, next) {
-    const token = req.headers.authorization;
-    if (!token) return res.status(401).json({ message: "No token provided" });
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch {
-        res.status(401).json({ message: "Invalid token" });
-    }
-}
-
-// --- Routes ---
+// --- 5. Page Routes ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+
+// Protect the Dashboard: If no session, go back to login
+app.get('/dashboard', (req, res) => {
+    if (!req.session.userId) return res.redirect('/');
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// --- 6. API Routes (Auth) ---
 
 app.post('/api/signup', async (req, res) => {
     try {
@@ -84,34 +85,44 @@ app.post('/api/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(400).json({ message: "Invalid credentials" });
     }
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token });
+    // Set the session
+    req.session.userId = user._id;
+    res.json({ message: "Logged in" });
 });
 
-// --- Privacy: Get ONLY your files ---
-app.get('/api/files', auth, async (req, res) => {
-    const files = await File.find({ userId: req.user.id });
+app.get('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+});
+
+// --- 7. API Routes (Files) ---
+
+// Privacy: Find files only for the logged-in user session
+app.get('/api/files', async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    const files = await File.find({ userId: req.session.userId }).sort({ createdAt: -1 });
     res.json(files);
 });
 
-// --- Upload to Cloudinary (Privacy Fixed) ---
-app.post('/api/upload', auth, upload.single('file'), async (req, res) => {
+// Upload to Cloudinary (Tagged to User)
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
     try {
         const file = new File({
-            userId: req.user.id, // Securely linked to user
+            userId: req.session.userId,
             name: req.file.originalname,
-            url: req.file.path,
-            type: "file"
+            url: req.file.path
         });
         await file.save();
-        res.json(file);
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Upload failed" }); }
 });
 
-app.delete('/api/file/:id', auth, async (req, res) => {
-    await File.deleteOne({ _id: req.params.id, userId: req.user.id });
+app.delete('/api/file/:id', async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Unauthorized" });
+    await File.deleteOne({ _id: req.params.id, userId: req.session.userId });
     res.json({ message: "Deleted" });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Secure Session Server live on port ${PORT}`));
