@@ -1,132 +1,109 @@
-<!DOCTYPE html>  <html lang="en">  
-<head>  
-    <meta charset="UTF-8">  
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
-    <title>CloudConnect - My Private Dashboard</title>  
-    <link rel="stylesheet" href="dashboard.css">  
-</head>  
-<body>  <div class="header">  
-    <h1>CloudConnect</h1>  
-    <div class="user-controls">  
-        <button class="btn btn-delete" onclick="logout()">Logout</button>  
-    </div>  
-</div>  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudConnect - Files</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <div class="header">
+        <h1>CloudConnect</h1>
+        <button class="btn btn-delete" onclick="logout()">Logout</button>
+    </div>
 
-<div class="container">  
-    <div class="upload-section">  
-        <h3>Upload a Private File</h3>  
-        <div class="file-input-wrapper">  
-            <input type="file" id="fileInput">  
-        </div>  
-        <button class="btn btn-upload" onclick="uploadFile()">Upload to My Cloud</button>  
-        <p id="uploadStatus"></p>  
-    </div>  
+    <div class="container">
+        <div id="breadcrumb" style="margin-bottom: 20px; font-weight: bold;">
+            <span onclick="navigateTo(null)" style="cursor:pointer; color:var(--primary-color)">🏠 Root</span>
+        </div>
 
-    <div id="fileGrid">  
-        </div>  
-</div>  
+        <div class="upload-section">
+            <button class="btn btn-upload" onclick="createFolder()">+ New Folder</button>
+            <input type="file" id="fileInput">
+            <button class="btn btn-upload" onclick="uploadFile()">Upload File</button>
+            <p id="uploadStatus"></p>
+        </div>
 
-<script>  
-    // 1. Load ONLY this user's files from the server  
-    async function loadFiles() {  
-        const grid = document.getElementById('fileGrid');  
-        grid.innerHTML = '<p>Loading your private files...</p>';  
-          
-        try {  
-            const response = await fetch('/api/files');  
-            const files = await response.json();  
-              
-            if (files.length === 0) {  
-                grid.innerHTML = '<p>Your cloud is empty. Upload something!</p>';  
-                return;  
-            }  
+        <div id="fileGrid"></div>
+    </div>
 
-            grid.innerHTML = files.map(file => {  
-                // Logic to check if the file is an image for the preview feature  
-                const isImage = /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(file.name);  
-                  
-                return `  
-                    <div class="file-card">  
-                        <div onclick="window.open('${file.url}', '_blank')" style="cursor:pointer">  
-                            ${isImage ?   
-                                `<img src="${file.url}" class="img-preview" style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:10px;">` :   
-                                `<span class="file-icon">📄</span>`  
-                            }  
-                            <div class="file-name">${file.name}</div>  
-                        </div>  
-                        <div class="button-group">  
-                            <a href="${file.url}" target="_blank" class="btn btn-download">Download</a>  
-                            <button onclick="deleteFile('${file._id}')" class="btn btn-delete">Delete</button>  
-                        </div>  
-                    </div>  
-                `;  
-            }).join('');  
-        } catch (err) {  
-            grid.innerHTML = '<p style="color:red;">Error connecting to your cloud.</p>';  
-        }  
-    }  
+    <script>
+        let currentFolderId = null;
 
-    // 2. Upload file and tag it to the current user session  
-    async function uploadFile() {  
-        const fileInput = document.getElementById('fileInput');  
-        const status = document.getElementById('uploadStatus');  
-          
-        if (fileInput.files.length === 0) {  
-            alert("Please select a file first!");  
-            return;  
-        }  
+        async function loadItems() {
+            const grid = document.getElementById('fileGrid');
+            grid.innerHTML = '<p>Loading...</p>';
+            
+            const response = await fetch(`/api/items?parentId=${currentFolderId}`);
+            const items = await response.json();
+            
+            grid.innerHTML = items.map(item => {
+                const isFolder = item.type === 'folder';
+                const isImage = /\.(jpg|jpeg|png|webp)$/i.test(item.name);
+                
+                return `
+                    <div class="file-card">
+                        <div onclick="${isFolder ? `MapsTo('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}" style="cursor:pointer">
+                            ${isFolder ? `<span class="file-icon">📂</span>` : 
+                                (isImage ? `<img src="${item.url}" class="img-preview" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">` : `<span class="file-icon">📄</span>`)
+                            }
+                            <div class="file-name">${item.name}</div>
+                        </div>
+                        <div class="button-group">
+                            ${!isFolder ? `<a href="${item.url}" target="_blank" class="btn btn-download">Download</a>` : ''}
+                            <button onclick="deleteItem('${item._id}')" class="btn btn-delete">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
-        const formData = new FormData();  
-        formData.append('file', fileInput.files[0]);  
-        status.innerText = "Securing and uploading...";  
+        function navigateTo(id, name) {
+            currentFolderId = id;
+            const bc = document.getElementById('breadcrumb');
+            if (!id) {
+                bc.innerHTML = '<span onclick="navigateTo(null)" style="cursor:pointer; color:var(--primary-color)">🏠 Root</span>';
+            } else {
+                bc.innerHTML += ` > <span>${name}</span>`;
+            }
+            loadItems();
+        }
 
-        try {  
-            const response = await fetch('/api/upload', {  
-                method: 'POST',  
-                body: formData  
-            });  
+        async function createFolder() {
+            const name = prompt("Folder Name:");
+            if (!name) return;
+            await fetch('/api/folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, parentId: currentFolderId })
+            });
+            loadItems();
+        }
 
-            const result = await response.json();  
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('parentId', currentFolderId);
 
-            if (result.success) {  
-                status.innerText = "Upload successful!";  
-                fileInput.value = '';   
-                loadFiles();   
-            } else {  
-                status.innerText = "Upload failed. Please try again.";  
-            }  
-        } catch (err) {  
-            status.innerText = "Error uploading file.";  
-        }  
-    }  
+            document.getElementById('uploadStatus').innerText = "Uploading...";
+            const response = await fetch('/api/upload', { method: 'POST', body: formData });
+            if (response.ok) {
+                fileInput.value = '';
+                document.getElementById('uploadStatus').innerText = "";
+                loadItems();
+            }
+        }
 
-    // 3. Delete file from this user's account  
-    async function deleteFile(id) {  
-        if (confirm("Permanently delete this file?")) {  
-            try {  
-                const response = await fetch(`/api/files/${id}`, {  
-                    method: 'DELETE'  
-                });  
+        async function deleteItem(id) {
+            if (confirm("Delete this?")) {
+                await fetch(`/api/items/${id}`, { method: 'DELETE' });
+                loadItems();
+            }
+        }
 
-                if (response.ok) {  
-                    loadFiles();  
-                } else {  
-                    alert("Delete failed.");  
-                }  
-            } catch (err) {  
-                alert("Error deleting file.");  
-            }  
-        }  
-    }  
-
-    // 4. Logout (Redirects to home)  
-    function logout() {  
-        window.location.href = '/';  
-    }  
-
-    // Initial Load  
-    loadFiles();  
-</script>
-
-</body>  
+        function logout() { window.location.href = '/'; }
+        loadItems();
+    </script>
+</body>
 </html>
