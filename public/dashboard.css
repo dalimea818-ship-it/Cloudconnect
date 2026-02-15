@@ -1,107 +1,177 @@
+/* --- THEME VARIABLES --- */
 :root {
-    --accent: #0A84FF; /* Vibrant Apple Dark Blue */
-    --glass: rgba(25, 25, 25, 0.7);
-    --border: rgba(255, 255, 255, 0.1);
-    --text: #ffffff;
+    /* Default Dark Theme */
+    --accent: #0A84FF;
+    --bg-main: #000000;
+    --text-main: #ffffff;
+    --text-dim: #888888;
+    --glass: rgba(30, 30, 35, 0.7);
+    --border: rgba(255, 255, 255, 0.08);
+    --blob-opacity: 0.15;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] {
+    --bg-main: #f5f5f7;
+    --text-main: #1d1d1f;
+    --text-dim: #86868b;
+    --glass: rgba(255, 255, 255, 0.7);
+    --border: rgba(0, 0, 0, 0.05);
+    --blob-opacity: 0.1;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
 }
 
 body {
-    margin: 0;
+    margin: 0; 
+    background: var(--bg-main); 
+    color: var(--text-main);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
-    background: #000; /* Deep black base for Liquid effect */
-    color: var(--text);
-    height: 100vh;
+    height: 100vh; 
     overflow: hidden;
+    transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* --- Animated Dark Liquid Background --- */
-.bg-blob {
-    position: fixed;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(10, 132, 255, 0.2) 0%, rgba(0,0,0,0) 70%);
-    filter: blur(100px);
-    z-index: -1;
-    animation: move 25s infinite alternate;
+/* --- LIQUID BACKGROUND --- */
+.bg-blob { 
+    position: fixed; 
+    width: 600px; 
+    height: 600px; 
+    filter: blur(100px); 
+    z-index: -1; 
+    animation: drift 25s infinite alternate; 
+    opacity: var(--blob-opacity);
 }
-.blob-1 { top: -200px; left: -100px; }
-.blob-2 { bottom: -200px; right: -100px; background: radial-gradient(circle, rgba(191, 90, 242, 0.15) 0%, rgba(0,0,0,0) 70%); }
+.blob-1 { top: -100px; left: -100px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); }
+.blob-2 { bottom: -100px; right: -100px; background: radial-gradient(circle, #bf5af2 0%, transparent 70%); }
 
-@keyframes move {
-    from { transform: translate(0, 0) rotate(0deg); }
-    to { transform: translate(150px, 50px) rotate(30deg); }
-}
+@keyframes drift { from { transform: translate(0,0); } to { transform: translate(150px, 80px); } }
 
-/* --- Desktop Sidebar Navigation --- */
+/* --- LAYOUT --- */
 .app-layout { display: flex; height: 100vh; }
 
-.sidebar {
-    width: 260px;
-    height: 100%;
+.sidebar { 
+    width: 260px; 
+    padding: 30px; 
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: 20px;
-    box-sizing: border-box;
 }
 
-/* --- Mobile Bottom Navigation --- */
-.bottom-nav {
-    display: none;
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    height: 80px;
-    z-index: 1000;
-    justify-content: space-around;
-    align-items: center;
-    padding-bottom: 20px;
+.main-stage { 
+    flex: 1; 
+    padding: 40px; 
+    overflow-y: auto; 
+    padding-bottom: 120px; 
 }
 
-/* --- Main Content Area --- */
-.main-stage {
-    flex: 1;
-    overflow-y: auto;
-    padding: 40px;
-    padding-bottom: 120px; /* Space for mobile nav */
+/* --- GLASS PANELS --- */
+.glass-panel { 
+    background: var(--glass); 
+    backdrop-filter: blur(30px) saturate(180%); 
+    -webkit-backdrop-filter: blur(30px) saturate(180%); 
+    border: 1px solid var(--border); 
+    box-shadow: var(--shadow);
 }
 
-/* --- Glass UI Elements --- */
-.glass-panel {
-    background: var(--glass);
-    backdrop-filter: blur(30px) saturate(200%);
-    -webkit-backdrop-filter: blur(30px) saturate(200%);
-    border: 1px solid var(--border);
+/* --- FILE GRID --- */
+.file-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+    gap: 25px; 
 }
 
-.file-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 25px;
+.file-card { 
+    position: relative; 
+    border-radius: 32px; 
+    transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
 }
+.file-card:hover { transform: scale(1.04); background: rgba(255,255,255,0.05); }
 
-.file-card {
-    border-radius: 24px;
-    padding: 20px;
-    text-align: center;
-    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.file-card:hover { transform: scale(1.05); background: rgba(255,255,255,0.05); }
+.hit-zone { padding: 25px; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.main-icon { width: 70px; height: 70px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1)); }
+.img-preview { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 24px; }
+.file-name { margin-top: 15px; font-size: 0.85rem; font-weight: 600; text-align: center; color: var(--text-main); }
 
-.pill-btn {
-    background: var(--accent);
-    color: white;
-    padding: 12px 24px;
-    border-radius: 50px;
-    border: none;
-    font-weight: 600;
+/* --- UI BUTTONS --- */
+.pill-btn { 
+    background: var(--accent); 
+    color: white; 
+    border: none; 
+    padding: 14px; 
+    border-radius: 50px; 
+    width: 100%; 
+    margin-bottom: 25px; 
+    font-weight: 700; 
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(10, 132, 255, 0.3);
 }
 
-/* --- Adaptive Layout Logic --- */
+.nav-item { 
+    padding: 12px 18px; 
+    cursor: pointer; 
+    border-radius: 18px; 
+    transition: 0.2s; 
+    font-size: 0.95rem; 
+    color: var(--text-dim); 
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.nav-item:hover { background: rgba(120, 120, 120, 0.1); color: var(--text-main); }
+
+/* --- CONTEXT MENU --- */
+.context-menu { 
+    position: absolute; 
+    display: none; 
+    z-index: 1000; 
+    width: 200px; 
+    padding: 10px; 
+    border-radius: 24px; 
+}
+.context-menu button { 
+    width: 100%; 
+    padding: 12px; 
+    background: none; 
+    border: none; 
+    color: var(--text-main); 
+    text-align: left; 
+    cursor: pointer; 
+    border-radius: 14px; 
+    font-weight: 500;
+}
+.context-menu button:hover { background: var(--accent); color: white; }
+
+/* --- MORE BUTTON --- */
+.more-btn { 
+    position: absolute; 
+    top: 15px; 
+    right: 15px; 
+    cursor: pointer; 
+    width: 32px; 
+    height: 32px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    z-index: 5; 
+    border-radius: 50%; 
+    color: var(--text-dim);
+}
+
+/* --- BOTTOM NAV (MOBILE) --- */
+.bottom-nav { 
+    position: fixed; 
+    bottom: 0; 
+    width: 100%; 
+    height: 85px; 
+    display: none; 
+    justify-content: space-around; 
+    align-items: center; 
+    padding-bottom: 20px; 
+    z-index: 100;
+}
+
 @media (max-width: 768px) {
     .sidebar { display: none; }
     .bottom-nav { display: flex; }
     .main-stage { padding: 20px; }
-    .file-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
