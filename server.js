@@ -27,16 +27,19 @@ const upload = multer({ storage: storage });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', 1);
+
+app.set('trust proxy', 1); 
 app.use(session({
-    secret: 'secret-key-cloudconnect',
+    secret: process.env.SESSION_SECRET || 'dev_secret_key',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: process.env.NODE_ENV === "production" }
 }));
 
 // --- 3. DATABASE ---
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ DB Connected"));
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ DB Connected"))
+    .catch(err => console.error("❌ DB Connection Error:", err));
 
 // --- 4. MODELS ---
 const User = mongoose.model('User', new mongoose.Schema({
@@ -47,7 +50,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 
 const ItemModel = mongoose.model('Item', new mongoose.Schema({
     name: String,
-    url: String, // Null for folders
+    url: String, 
     type: { type: String, enum: ['file', 'folder'], required: true },
     owner: String,
     parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null },
@@ -63,10 +66,13 @@ app.get('/dashboard', (req, res) => {
 });
 
 // --- 6. API ROUTES ---
+
 app.post('/api/register', async (req, res) => {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    await new User({ ...req.body, password: hashedPassword }).save();
-    res.redirect('/');
+    try {
+        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+        await new User({ ...req.body, password: hashedPassword }).save();
+        res.redirect('/');
+    } catch (err) { res.status(400).send("Signup failed"); }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -77,49 +83,57 @@ app.post('/api/login', async (req, res) => {
     } else { res.status(401).send("Invalid login"); }
 });
 
-// Fetch items based on parentId
+// Fetch items (Files + Folders) for a specific parent
 app.get('/api/items', async (req, res) => {
-    if (!req.session.userEmail) return res.json([]);
-    const parentId = req.query.parentId === 'null' ? null : req.query.parentId;
-    const items = await ItemModel.find({ 
-        owner: req.session.userEmail, 
-        parentId: parentId 
-    }).sort({ type: 1, name: 1 }); // Folders first
-    res.json(items);
+    if (!req.session.userEmail) return res.status(401).json([]);
+    const parentId = req.query.parentId === 'null' || !req.query.parentId ? null : req.query.parentId;
+    try {
+        const items = await ItemModel.find({ 
+            owner: req.session.userEmail, 
+            parentId: parentId 
+        }).sort({ type: 1, name: 1 });
+        res.json(items);
+    } catch (err) { res.status(500).json([]); }
 });
 
 // Create Folder
 app.post('/api/folder', async (req, res) => {
     if (!req.session.userEmail) return res.status(401).send();
-    const { name, parentId } = req.body;
-    const folder = new ItemModel({
-        name,
-        type: 'folder',
-        owner: req.session.userEmail,
-        parentId: parentId || null
-    });
-    await folder.save();
-    res.json({ success: true });
+    try {
+        const folder = new ItemModel({
+            name: req.body.name,
+            type: 'folder',
+            owner: req.session.userEmail,
+            parentId: req.body.parentId || null
+        });
+        await folder.save();
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(); }
 });
 
 // Upload File
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.session.userEmail) return res.status(401).send();
-    const parentId = req.body.parentId === 'null' ? null : req.body.parentId;
-    const newFile = new ItemModel({
-        name: req.file.originalname,
-        url: req.file.path,
-        type: 'file',
-        owner: req.session.userEmail,
-        parentId: parentId
-    });
-    await newFile.save();
-    res.json({ success: true });
+    try {
+        const newFile = new ItemModel({
+            name: req.file.originalname,
+            url: req.file.path,
+            type: 'file',
+            owner: req.session.userEmail,
+            parentId: req.body.parentId === 'null' ? null : req.body.parentId
+        });
+        await newFile.save();
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(); }
 });
 
+// Delete Item
 app.delete('/api/items/:id', async (req, res) => {
-    await ItemModel.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
+    if (!req.session.userEmail) return res.status(401).send();
+    try {
+        await ItemModel.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(); }
 });
 
-app.listen(PORT, () => console.log("🚀 Server Active"));
+app.listen(PORT, () => console.log(`🚀 Server Running on Port ${PORT}`));
