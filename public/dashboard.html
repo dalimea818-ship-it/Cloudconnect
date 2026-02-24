@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Cloud</title>
+    <title>Dashboard | CloudConnect</title>
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -12,29 +12,38 @@
 
     <div class="app-layout">
         <aside class="sidebar glass-panel">
-            <h2>📁 Cloud</h2>
+            <h2 style="letter-spacing:-1px;">📁 Cloud</h2>
             <nav>
-                <div class="nav-item" onclick="resetToRoot()">🏠 Home</div>
-                <div class="nav-item" onclick="toggleTheme()">🌓 Theme</div>
-                <div class="nav-item" onclick="createFolder()">📁 New Folder</div>
-                <label class="nav-item">📤 Upload<input type="file" multiple style="display:none" onchange="handleUpload(this)"></label>
+                <div class="nav-item" onclick="resetToRoot()"> Home</div>
+                <div class="nav-item" onclick="createNewFolder()">➕ New Folder</div>
+                <label class="nav-item">
+                    📤 Upload Files
+                    <input type="file" id="fileInput" multiple style="display:none" onchange="handleUpload(this)">
+                </label>
+                <div class="nav-item" style="margin-top:auto; color:#ff453a;" onclick="logout()">Logout</div>
             </nav>
         </aside>
+
         <main class="main-stage">
-            <div id="breadcrumb" style="font-size:1.5rem; font-weight:800; margin-bottom:30px; color:var(--text-main);">My Cloud</div>
-            <div id="fileGrid" class="file-grid"></div>
+            <header class="dashboard-header">
+                <div id="breadcrumb" class="breadcrumb">My Cloud</div>
+            </header>
+            
+            <div id="fileGrid" class="file-grid">
+                </div>
         </main>
     </div>
 
     <div id="contextMenu" class="context-menu glass-panel">
         <button onclick="triggerRename()">Rename</button>
         <button onclick="triggerIconChange()">Change Icon</button>
+        <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:5px 0;">
         <button onclick="triggerDelete()" style="color:#ff453a">Delete</button>
     </div>
 
     <script>
         let currentFolderId = null;
-        let activeId = null;
+        let activeItemId = null;
 
         async function loadItems() {
             const res = await fetch(`/api/items?parentId=${currentFolderId}`);
@@ -44,14 +53,17 @@
             grid.innerHTML = items.map(item => {
                 const isFolder = item.type === 'folder';
                 const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.name);
-                const icon = item.customIcon ? `<img src="${item.customIcon}" class="main-icon">` : (isFolder ? '📁' : '📄');
+                
+                // Use custom icon if exists, else folder icon, else file icon
+                let displayIcon = isFolder ? '📁' : '📄';
+                if (item.customIcon) displayIcon = `<img src="${item.customIcon}" class="main-icon">`;
 
                 return `
                 <div class="file-card glass-panel">
                     <div class="more-btn" onclick="showMenu(event, '${item._id}')">⋮</div>
                     <div class="hit-zone" onclick="${isFolder ? `MapsIn('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}">
-                        <div class="icon-box" style="font-size:60px; display:flex; justify-content:center;">
-                            ${isImage && !isFolder ? `<img src="${item.url}" class="img-preview">` : icon}
+                        <div class="icon-box">
+                            ${isImage && !isFolder ? `<img src="${item.url}" class="img-preview">` : `<span style="font-size:50px;">${displayIcon}</span>`}
                         </div>
                         <div class="file-name" title="${item.name}">${item.name}</div>
                     </div>
@@ -72,27 +84,31 @@
         }
 
         function showMenu(e, id) {
+            e.preventDefault();
             e.stopPropagation();
-            activeId = id;
+            activeItemId = id;
             const menu = document.getElementById('contextMenu');
             menu.style.display = 'block';
-            menu.style.top = e.pageY + 'px';
-            menu.style.left = (e.pageX - 150) + 'px';
+            menu.style.top = `${e.pageY}px`;
+            menu.style.left = `${e.pageX - 160}px`;
         }
 
-        async function triggerIconChange() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.onchange = async (e) => {
-                const fd = new FormData();
-                fd.append('files', e.target.files[0]);
-                const res = await fetch('/api/upload', { method:'POST', body:fd });
-                loadItems();
-            };
-            input.click();
+        async function handleUpload(input) {
+            const formData = new FormData();
+            for (let file of input.files) formData.append('files', file);
+            formData.append('parentId', currentFolderId);
+
+            await fetch('/api/upload', { method: 'POST', body: formData });
+            loadItems();
+        }
+
+        function logout() {
+            window.location.href = '/login';
         }
 
         window.onclick = () => document.getElementById('contextMenu').style.display = 'none';
+        
+        // Initial load
         loadItems();
     </script>
 </body>
