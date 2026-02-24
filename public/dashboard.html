@@ -3,113 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | CloudConnect</title>
+    <title>CloudConnect | Dashboard</title>
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
-    <div class="bg-blob blob-1"></div>
-    <div class="bg-blob blob-2"></div>
-
-    <div class="app-layout">
-        <aside class="sidebar glass-panel">
-            <h2 style="letter-spacing:-1px;">📁 Cloud</h2>
-            <nav>
-                <div class="nav-item" onclick="resetToRoot()"> Home</div>
-                <div class="nav-item" onclick="createNewFolder()">➕ New Folder</div>
-                <label class="nav-item">
-                    📤 Upload Files
-                    <input type="file" id="fileInput" multiple style="display:none" onchange="handleUpload(this)">
-                </label>
-                <div class="nav-item" style="margin-top:auto; color:#ff453a;" onclick="logout()">Logout</div>
-            </nav>
-        </aside>
-
-        <main class="main-stage">
-            <header class="dashboard-header">
-                <div id="breadcrumb" class="breadcrumb">My Cloud</div>
-            </header>
-            
-            <div id="fileGrid" class="file-grid">
-                </div>
-        </main>
+    <div class="glass-sidebar">
+        <div class="logo">CloudConnect</div>
+        <nav>
+            <button class="nav-item active" onclick="loadItems()">My Cloud</button>
+            <button class="nav-item" onclick="document.getElementById('fileInput').click()">Upload Files</button>
+            <button class="nav-item" onclick="document.getElementById('folderInput').click()">Upload Folder</button>
+        </nav>
+        <div class="user-info">
+            <a href="/api/logout" class="logout-link">Log Out</a>
+        </div>
     </div>
 
-    <div id="contextMenu" class="context-menu glass-panel">
-        <button onclick="triggerRename()">Rename</button>
-        <button onclick="triggerIconChange()">Change Icon</button>
-        <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:5px 0;">
-        <button onclick="triggerDelete()" style="color:#ff453a">Delete</button>
+    <main class="main-content">
+        <header class="top-bar">
+            <div id="breadcrumb">Root</div>
+            <div class="search-bar">
+                <input type="text" placeholder="Search your files...">
+            </div>
+        </header>
+
+        <div id="file-grid" class="file-grid">
+            </div>
+    </main>
+
+    <input type="file" id="fileInput" multiple style="display:none" onchange="handleUpload(this.files)">
+    <input type="file" id="folderInput" webkitdirectory style="display:none" onchange="handleUpload(this.files)">
+
+    <div id="iconPickerModal" class="modal-overlay" style="display:none;">
+        <div class="glass-modal">
+            <h2>Select Folder Style</h2>
+            <div id="iconGrid" class="icon-grid">
+                </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <label for="customFileIcon" class="btn-main">Select Custom Picture</label>
+                <input type="file" id="customFileIcon" style="display:none" accept="image/*" onchange="handleCustomIconUpload(this)">
+            </div>
+        </div>
     </div>
 
     <script>
-        let currentFolderId = null;
-        let activeItemId = null;
+        let currentParentId = null;
+        let selectedFolderId = null;
+
+        const folderPresets = [
+            "https://i.ibb.co/image_89b042.png",
+            "https://i.ibb.co/image_89b07a.png",
+            "https://i.ibb.co/image_89b09d.png",
+            "https://i.ibb.co/image_89b366.png"
+        ];
 
         async function loadItems() {
-            const res = await fetch(`/api/items?parentId=${currentFolderId}`);
+            const res = await fetch(`/api/items?parentId=${currentParentId}`);
             const items = await res.json();
-            const grid = document.getElementById('fileGrid');
-            
-            grid.innerHTML = items.map(item => {
-                const isFolder = item.type === 'folder';
-                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.name);
+            const grid = document.getElementById('file-grid');
+            grid.innerHTML = '';
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'item-card';
+                // Show custom icon for folders, generic icon for files
+                const iconSrc = item.type === 'folder' ? (item.customIcon || folderPresets[0]) : 'https://cdn-icons-png.flaticon.com/512/2965/2965335.png';
                 
-                // Use custom icon if exists, else folder icon, else file icon
-                let displayIcon = isFolder ? '📁' : '📄';
-                if (item.customIcon) displayIcon = `<img src="${item.customIcon}" class="main-icon">`;
-
-                return `
-                <div class="file-card glass-panel">
-                    <div class="more-btn" onclick="showMenu(event, '${item._id}')">⋮</div>
-                    <div class="hit-zone" onclick="${isFolder ? `MapsIn('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}">
-                        <div class="icon-box">
-                            ${isImage && !isFolder ? `<img src="${item.url}" class="img-preview">` : `<span style="font-size:50px;">${displayIcon}</span>`}
-                        </div>
-                        <div class="file-name" title="${item.name}">${item.name}</div>
-                    </div>
-                </div>`;
-            }).join('');
+                div.innerHTML = `
+                    <img src="${iconSrc}" class="item-icon">
+                    <span class="item-name">${item.name}</span>
+                    ${item.type === 'folder' ? `<button class="edit-icon-btn" onclick="openPicker('${item._id}')">⚙️</button>` : ''}
+                `;
+                
+                if(item.type === 'folder') {
+                    div.ondblclick = () => { currentParentId = item._id; loadItems(); };
+                } else {
+                    div.onclick = () => window.open(item.url, '_blank');
+                }
+                grid.appendChild(div);
+            });
         }
 
-        function navigateIn(id, name) {
-            currentFolderId = id;
-            document.getElementById('breadcrumb').innerText = name;
-            loadItems();
-        }
-
-        function resetToRoot() {
-            currentFolderId = null;
-            document.getElementById('breadcrumb').innerText = "My Cloud";
-            loadItems();
-        }
-
-        function showMenu(e, id) {
-            e.preventDefault();
-            e.stopPropagation();
-            activeItemId = id;
-            const menu = document.getElementById('contextMenu');
-            menu.style.display = 'block';
-            menu.style.top = `${e.pageY}px`;
-            menu.style.left = `${e.pageX - 160}px`;
-        }
-
-        async function handleUpload(input) {
+        async function handleUpload(files) {
             const formData = new FormData();
-            for (let file of input.files) formData.append('files', file);
-            formData.append('parentId', currentFolderId);
+            for (let f of files) formData.append('files', f);
+            if(currentParentId) formData.append('parentId', currentParentId);
 
             await fetch('/api/upload', { method: 'POST', body: formData });
             loadItems();
         }
 
-        function logout() {
-            window.location.href = '/login';
+        function openPicker(id) {
+            selectedFolderId = id;
+            const modal = document.getElementById('iconPickerModal');
+            const grid = document.getElementById('iconGrid');
+            grid.innerHTML = '';
+            
+            folderPresets.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url;
+                img.onclick = () => updateIcon(url);
+                grid.appendChild(img);
+            });
+            modal.style.display = 'flex';
         }
 
-        window.onclick = () => document.getElementById('contextMenu').style.display = 'none';
-        
-        // Initial load
-        loadItems();
+        async function updateIcon(url) {
+            await fetch(`/api/items/${selectedFolderId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customIcon: url })
+            });
+            closeModal();
+            loadItems();
+        }
+
+        async function handleCustomIconUpload(input) {
+            // Logic to upload a custom image to Cloudinary and set as icon
+            const formData = new FormData();
+            formData.append('files', input.files[0]);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            // Assuming the server returns the new file object
+            updateIcon(data[0].url);
+        }
+
+        function closeModal() { document.getElementById('iconPickerModal').style.display = 'none'; }
+
+        window.onload = loadItems;
     </script>
 </body>
 </html>
