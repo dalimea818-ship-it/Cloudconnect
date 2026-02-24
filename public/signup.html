@@ -3,65 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudConnect - Sign Up</title>
+    <title>Join | CloudConnect</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <style>
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            height: 100vh; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            margin: 0; 
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; overflow: hidden; }
+        .auth-card { 
+            width: 360px; padding: 45px; border-radius: 40px; 
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); 
+            border: 1px solid rgba(255,255,255,0.1); text-align: center; 
+            z-index: 10;
         }
-        .card { 
-            background: white; 
-            padding: 2.5rem; 
-            border-radius: 15px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
-            width: 350px; 
-            text-align: center; 
+        .social-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
+        .social-btn { 
+            display: flex; align-items: center; justify-content: center; gap: 12px; 
+            padding: 15px; border-radius: 20px; border: none; cursor: pointer; 
+            font-weight: 600; font-size: 0.95rem; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
         }
-        h2 { color: #4a4a4a; margin-bottom: 0.5rem; }
-        .subtitle { color: #777; margin-bottom: 1.5rem; font-size: 0.9rem; }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            margin: 10px 0; 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            box-sizing: border-box; 
-        }
-        button { 
-            width: 100%; 
-            padding: 12px; 
-            background: #667eea; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-size: 16px; 
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        button:hover { background: #5a397e; }
-        .footer-text { font-size: 14px; color: #666; margin-top: 20px; }
-        a { color: #667eea; text-decoration: none; font-weight: bold; }
+        .social-btn:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+        .google { background: #fff; color: #000; }
+        .github { background: #24292e; color: #fff; }
+        .footer-text { margin-top: 25px; font-size: 0.8rem; color: rgba(255,255,255,0.3); }
+        .footer-text a { color: #0A84FF; text-decoration: none; font-weight: 600; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Join CloudConnect</h2>
-        <p class="subtitle">Create your personal cloud vault</p>
-        
-        <form action="/api/register" method="POST">
-            <input type="text" name="fullName" placeholder="Full Name" required>
-            <input type="email" name="email" placeholder="Email Address" required>
-            <input type="password" name="password" placeholder="Create Password" required>
-            <button type="submit">Sign Up</button>
-        </form>
-        
-        <p class="footer-text">Already have an account? <a href="/">Login</a></p>
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+
+    <div class="auth-card">
+        <h1 style="color:white; letter-spacing:-2px; margin:0;">Create Account</h1>
+        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem; margin-top:8px;">Start your journey in the glass cloud</p>
+
+        <div class="social-stack">
+            <button class="social-btn google" onclick="auth('google')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_Logo.svg" width="18"> Join with Google
+            </button>
+            <button class="social-btn github" onclick="auth('github')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" width="18" style="filter:invert(1)"> Join with GitHub
+            </button>
+        </div>
+
+        <p class="footer-text">
+            Already have an account? <a href="/login">Log in</a>
+        </p>
     </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        async function auth(providerName) {
+            const provider = providerName === 'google' 
+                ? new firebase.auth.GoogleAuthProvider() 
+                : new firebase.auth.GithubAuthProvider();
+            
+            try {
+                const result = await firebase.auth().signInWithPopup(provider);
+                const idToken = await result.user.getIdToken();
+                const res = await fetch('/api/auth/firebase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+                if(res.ok) window.location.href = '/dashboard';
+            } catch (e) { alert("Registration failed: " + e.message); }
+        }
+    </script>
 </body>
 </html>
