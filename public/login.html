@@ -8,46 +8,36 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <style>
-        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-        .auth-card { width: 380px; padding: 40px; border-radius: 40px; background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); border: 1px solid rgba(255,255,255,0.1); text-align: center; }
-        .social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-        .social-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 15px; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: 0.2s; }
-        .full-width { grid-column: span 2; }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; }
+        .auth-card { width: 360px; padding: 45px; border-radius: 40px; background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .social-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
+        .social-btn { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 15px; border-radius: 20px; border: none; cursor: pointer; font-weight: 600; font-size: 0.95rem; transition: 0.2s ease; }
+        .social-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
         .google { background: #fff; color: #000; }
-        .apple { background: #000; color: #fff; border: 1px solid #444; }
-        .microsoft { background: #2f2f2f; color: #fff; }
-        .facebook { background: #1877f2; color: #fff; }
-        .github { background: #333; color: #fff; }
+        .github { background: #24292e; color: #fff; }
     </style>
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
     <div class="bg-blob blob-2"></div>
     <div class="auth-card">
-        <h1 style="color:white; letter-spacing:-1.5px;">CloudConnect</h1>
-        <p style="color:rgba(255,255,255,0.5); font-size:0.9rem;">The future of glass storage</p>
-
-        <div class="social-grid">
-            <button class="social-btn google full-width" onclick="auth('google')">Continue with Google</button>
-            <button class="social-btn apple" onclick="auth('apple')">Apple</button>
-            <button class="social-btn microsoft" onclick="auth('microsoft')">Microsoft</button>
-            <button class="social-btn facebook" onclick="auth('facebook')">Facebook</button>
-            <button class="social-btn github" onclick="auth('github')">GitHub</button>
+        <h1 style="color:white; letter-spacing:-1.5px; margin-bottom:5px;">CloudConnect</h1>
+        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem;">Sign in to your private vault</p>
+        <div class="social-stack">
+            <button class="social-btn google" onclick="auth('google')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_Logo.svg" width="18"> Google
+            </button>
+            <button class="social-btn github" onclick="auth('github')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" width="18" style="filter:invert(1)"> GitHub
+            </button>
         </div>
+        <p style="margin-top:25px; font-size:0.8rem; color:rgba(255,255,255,0.3);">New here? <a href="/signup.html" style="color:var(--accent); text-decoration:none;">Create account</a></p>
     </div>
-
     <script>
-        const firebaseConfig = { /* PASTE YOUR CONFIG HERE */ };
+        const firebaseConfig = { /* YOUR FIREBASE CONFIG */ };
         firebase.initializeApp(firebaseConfig);
-
         async function auth(providerName) {
-            let provider;
-            if(providerName === 'google') provider = new firebase.auth.GoogleAuthProvider();
-            if(providerName === 'apple') provider = new firebase.auth.OAuthProvider('apple.com');
-            if(providerName === 'microsoft') provider = new firebase.auth.OAuthProvider('microsoft.com');
-            if(providerName === 'facebook') provider = new firebase.auth.FacebookAuthProvider();
-            if(providerName === 'github') provider = new firebase.auth.GithubAuthProvider();
-
+            let provider = providerName === 'google' ? new firebase.auth.GoogleAuthProvider() : new firebase.auth.GithubAuthProvider();
             try {
                 const result = await firebase.auth().signInWithPopup(provider);
                 const idToken = await result.user.getIdToken();
