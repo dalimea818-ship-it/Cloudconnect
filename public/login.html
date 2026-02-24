@@ -2,76 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | CloudConnect</title>
     <link rel="stylesheet" href="dashboard.css">
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <style>
-        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
-        .auth-card { 
-            width: 360px; padding: 45px; border-radius: 40px; 
-            background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); 
-            border: 1px solid rgba(255,255,255,0.1); text-align: center; 
-            z-index: 10;
-        }
-        input { 
-            width: 100%; padding: 14px; margin: 10px 0; border-radius: 15px; 
-            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.08); 
-            color: white; box-sizing: border-box; outline: none; transition: 0.3s;
-        }
-        input:focus { border-color: #0A84FF; background: rgba(255,255,255,0.12); }
-        .btn-main { 
-            width: 100%; padding: 15px; border-radius: 18px; border: none; 
-            background: #0A84FF; color: #fff; font-weight: 700; cursor: pointer; 
-            margin-top: 10px; transition: 0.2s; 
-        }
-        .btn-main:hover { background: #0070e0; transform: translateY(-1px); }
-        .divider { margin: 30px 0; border-bottom: 1px solid rgba(255,255,255,0.1); position: relative; }
-        .divider span { 
-            position: absolute; top: -10px; left: 50%; transform: translateX(-50%); 
-            background: #000; padding: 0 15px; color: #666; font-size: 11px; text-transform: uppercase; 
-        }
-        .social-btn { 
-            width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 18px; 
-            border: none; display: flex; align-items: center; justify-content: center; 
-            gap: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: 0.2s;
-        }
-        .social-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .goog { background: #fff; color: #000; }
-        .gith { background: #24292e; color: #fff; }
-        .footer-link { color: rgba(255,255,255,0.3); font-size: 12px; margin-top: 20px; }
-        .footer-link a { color: #0A84FF; text-decoration: none; font-weight: 600; }
-    </style>
 </head>
-<body>
-    <div class="bg-blob blob-1"></div>
-    <div class="bg-blob blob-2"></div>
-
-    <div class="auth-card">
-        <h1 style="color:white; letter-spacing:-1.5px; margin-bottom:5px;">Welcome Back</h1>
-        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem; margin-bottom:25px;">Enter your credentials to continue</p>
+<body style="background:#000; display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; font-family:sans-serif;">
+    
+    <div class="auth-card" style="width:360px; padding:40px; background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); border-radius:30px; border:1px solid rgba(255,255,255,0.1); text-align:center;">
+        <h1 style="color:white; letter-spacing:-1px;">Welcome Back</h1>
         
-        <input type="email" id="email" placeholder="Email Address">
-        <input type="password" id="password" placeholder="Password">
-        <button class="btn-main" onclick="emailLogin()">Log In</button>
+        <input type="email" id="email" placeholder="Email" style="width:100%; padding:12px; margin:10px 0; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:white;">
+        <input type="password" id="password" placeholder="Password" style="width:100%; padding:12px; margin:10px 0; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:white;">
+        
+        <button onclick="emailLogin()" style="width:100%; padding:14px; background:#0A84FF; color:white; border:none; border-radius:15px; font-weight:bold; cursor:pointer; margin-top:10px;">Log In</button>
 
-        <div class="divider"><span>OR CONTINUE WITH</span></div>
+        <div style="margin:20px 0; color:rgba(255,255,255,0.3); font-size:12px;">OR</div>
 
-        <button class="social-btn goog" onclick="authSocial('google')">
+        <button onclick="authSocial('google')" style="width:100%; padding:12px; background:white; color:black; border:none; border-radius:15px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> Google
         </button>
-        <button class="social-btn gith" onclick="authSocial('github')">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" width="18" style="filter:invert(1)"> GitHub
+        <button onclick="authSocial('github')" style="width:100%; padding:12px; background:#24292e; color:white; border:none; border-radius:15px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="18" style="filter:invert(1)"> GitHub
         </button>
 
-        <p class="footer-link">
-            New to CloudConnect? <a href="/signup.html">Create account</a>
-        </p>
+        <p style="color:rgba(255,255,255,0.4); font-size:12px; margin-top:20px;">No account? <a href="/signup.html" style="color:#0A84FF; text-decoration:none;">Join now</a></p>
     </div>
 
     <script>
-        // Your specific Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyB41nU-ULZ28LxNl8KkeE0c74WjwjyIDR4",
             authDomain: "cloudify-227f9.firebaseapp.com",
@@ -83,54 +41,35 @@
         };
         firebase.initializeApp(firebaseConfig);
 
-        // --- EMAIL/PASSWORD LOGIN ---
         async function emailLogin() {
             const e = document.getElementById('email').value;
             const p = document.getElementById('password').value;
             try {
                 const res = await firebase.auth().signInWithEmailAndPassword(e, p);
-                
-                // Check if email is verified
-                if (!res.user.emailVerified) {
-                    alert("Please verify your email address before logging in. Check your inbox for the link.");
-                    // Optional: Resend verification email
-                    // await res.user.sendEmailVerification();
-                    return;
-                }
-
+                if (!res.user.emailVerified) return alert("Verify your email first!");
                 const token = await res.user.getIdToken();
-                syncWithServer(token);
-            } catch (err) { 
-                alert("Login failed: " + err.message); 
-            }
+                sync(token);
+            } catch (err) { alert(err.message); }
         }
 
-        // --- SOCIAL AUTH (GOOGLE & GITHUB) ---
         async function authSocial(type) {
-            const provider = type === 'google' 
-                ? new firebase.auth.GoogleAuthProvider() 
-                : new firebase.auth.GithubAuthProvider();
+            const provider = type === 'google' ? new firebase.auth.GoogleAuthProvider() : new firebase.auth.GithubAuthProvider();
             try {
                 const res = await firebase.auth().signInWithPopup(provider);
                 const token = await res.user.getIdToken();
-                syncWithServer(token);
-            } catch (err) { 
-                alert("Auth failed: " + err.message); 
-            }
+                sync(token);
+            } catch (err) { alert(err.message); }
         }
 
-        // --- SYNC TOKEN WITH BACKEND SESSION ---
-        async function syncWithServer(idToken) {
+        async function sync(idToken) {
             const res = await fetch('/api/auth/firebase', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken })
             });
-            if(res.ok) {
-                window.location.href = '/dashboard';
-            } else {
-                alert("Server sync failed. Please try again.");
-            }
+            const data = await res.json();
+            if (data.success) window.location.href = '/dashboard';
+            else alert(data.error);
         }
     </script>
 </body>
