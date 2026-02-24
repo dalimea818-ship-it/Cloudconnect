@@ -4,95 +4,77 @@ const admin = require('firebase-admin');
 const session = require('express-session');
 const path = require('path');
 const mongoose = require('mongoose');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 
 const app = express();
 
-// --- 1. FIREBASE ADMIN SDK ---
-// This uses the Service Account JSON you provided in your Render environment variables.
+// --- FIREBASE ADMIN SDK ---
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-        });
-        console.log("✅ Firebase Admin SDK Initialized");
-    } catch (e) {
-        console.error("❌ Firebase Admin Init Error (Check JSON format):", e);
-    }
+        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({ credential: admin.credential.cert(sa) });
+    } catch (e) { console.error("Firebase Init Error:", e); }
 }
 
-// --- 2. MIDDLEWARE & SESSION ---
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Trust proxy is required for cookies to work on Render's HTTPS setup
-app.set('trust proxy', 1); 
-
-app.use(session({
-    secret: 'liquid-glass-vault-key',
-    resave: true, // Ensure session is updated
-    saveUninitialized: false,
-    cookie: { 
-        secure: true, // Required for HTTPS on Render
-        sameSite: 'none', // Allows session cookies to work with Firebase's cross-site auth
-        maxAge: 24 * 60 * 60 * 1000 
-    }
+// --- DATABASE & STORAGE ---
+mongoose.connect(process.env.MONGO_URI);
+const Item = mongoose.model('Item', new mongoose.Schema({
+    name: String, url: String, type: String, owner: String, 
+    customIcon: { type: String, default: "https://i.ibb.co/image_89b042.png" }, 
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null }
 }));
 
-// --- 3. THE AUTH BRIDGE (FIXES REDIRECT ISSUE) ---
+// --- MIDDLEWARE ---
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+app.set('trust proxy', 1); 
+app.use(session({
+    secret: 'liquid-glass-vault',
+    resave: true,
+    saveUninitialized: false,
+    cookie: { secure: true, sameSite: 'none' }
+}));
+
+// --- AUTH BRIDGE ---
 app.post('/api/auth/firebase', async (req, res) => {
     try {
-        const { idToken } = req.body;
-        if (!idToken) return res.status(400).json({ success: false, error: "No token provided" });
-
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        
-        // Security Gate: Check for Email Verification if user logged in via Password
-        if (decodedToken.firebase.sign_in_provider === 'password' && !decodedToken.email_verified) {
-            return res.status(403).json({ success: false, error: "Email not verified." });
-        }
-
-        // Save user to session
+        const decodedToken = await admin.auth().verifyIdToken(req.body.idToken);
         req.session.userEmail = decodedToken.email;
-        
-        // Explicitly save the session before responding to the frontend
-        req.session.save((err) => {
-            if (err) {
-                console.error("Session Save Error:", err);
-                return res.status(500).json({ success: false, error: "Session save failed" });
-            }
-            res.json({ success: true });
+        req.session.save(() => res.json({ success: true }));
+    } catch (e) { res.status(401).json({ success: false }); }
+});
+
+// --- FILE OPERATIONS ---
+const upload = multer({ storage: multer.memoryStorage() });
+app.post('/api/upload', upload.array('files'), async (req, res) => {
+    if (!req.session.userEmail) return res.status(401).send();
+    const promises = req.files.map(file => {
+        return new Promise((resolve) => {
+            cloudinary.uploader.upload_stream({ folder: 'CloudConnect' }, async (err, result) => {
+                const item = await new Item({ 
+                    name: file.originalname, url: result.secure_url, 
+                    type: 'file', owner: req.session.userEmail, 
+                    parentId: req.body.parentId || null 
+                }).save();
+                resolve(item);
+            }).end(file.buffer);
         });
-    } catch (e) {
-        console.error("Auth Bridge Error:", e.message);
-        res.status(401).json({ success: false, error: "Authentication failed" });
-    }
+    });
+    await Promise.all(promises);
+    res.json({ success: true });
 });
 
-// --- 4. PAGE ROUTING ---
-
-// Serves login.html as the primary entry point
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/login.html'));
+app.patch('/api/items/:id', async (req, res) => {
+    await Item.findByIdAndUpdate(req.params.id, req.body);
+    res.json({ success: true });
 });
 
-// Protected Dashboard Route
 app.get('/dashboard', (req, res) => {
-    if (!req.session.userEmail) {
-        console.log("No session found, redirecting to login...");
-        return res.redirect('/');
-    }
+    if (!req.session.userEmail) return res.redirect('/');
     res.sendFile(path.join(__dirname, 'public/dashboard.html'));
 });
 
-// Logout Route
-app.get('/api/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public/login.html')));
 
-// --- 5. SERVER START ---
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(process.env.PORT || 3000);
