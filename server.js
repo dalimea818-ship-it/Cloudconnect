@@ -1,106 +1,104 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
-const bcrypt = require('bcryptjs');
+const admin = require('firebase-admin');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const exifParser = require('exif-parser');
 const session = require('express-session');
-const exifParser = require('exif-parser'); // The new addition
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- CLOUDINARY CONFIG ---
+// --- FIREBASE ADMIN ---
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    admin.initializeApp({
+        credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+    });
+}
+
+// --- CLOUDINARY ---
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
+    cloud_name: process.env.CLOUDINARY_NAME,
+    api_key: process.env.CLOUDINARY_KEY,
+    api_secret: process.env.CLOUDINARY_SECRET
 });
 
-// Using MemoryStorage for Multer so we can access the file buffer for EXIF data
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// --- DB MODELS ---
+mongoose.connect(process.env.MONGO_URI);
+const Item = mongoose.model('Item', new mongoose.Schema({
+    name: String, url: String, type: String, owner: String, 
+    customIcon: String, parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null }
+}));
 
 // --- MIDDLEWARE ---
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', 1);
 app.use(session({
-    secret: 'liquid-pro-2026',
+    secret: 'liquid-glass-pro-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === "production" }
+    cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-// --- DATABASE ---
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ Liquid DB Connected"));
+// --- AUTH ROUTES ---
+app.get(['/', '/login'], (req, res) => res.sendFile(path.join(__dirname, 'public/login.html')));
+app.get(['/signup', '/signup.html'], (req, res) => res.sendFile(path.join(__dirname, 'public/signup.html')));
+app.get('/dashboard', (req, res) => req.session.userEmail ? res.sendFile(path.join(__dirname, 'public/dashboard.html')) : res.redirect('/'));
 
-const Item = mongoose.model('Item', new mongoose.Schema({
-    name: String,
-    url: String,
-    type: { type: String, enum: ['file', 'folder'] },
-    owner: String,
-    customIcon: { type: String, default: null },
-    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null }
-}));
+app.post('/api/auth/firebase', async (req, res) => {
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(req.body.idToken);
+        req.session.userEmail = decodedToken.email;
+        res.json({ success: true });
+    } catch (e) { res.status(401).send("Auth Failed"); }
+});
 
-// --- API ROUTES ---
+// --- FILE API ---
+const upload = multer({ storage: multer.memoryStorage() });
 
 app.post('/api/upload', upload.array('files'), async (req, res) => {
     if (!req.session.userEmail) return res.status(401).send();
-    
     const parentId = req.body.parentId === 'null' ? null : req.body.parentId;
 
-    const uploadPromises = req.files.map(async (file, index) => {
-        let finalName = file.originalname;
-        const extension = file.originalname.split('.').pop();
-        
-        // Handle "Date Taken" for Images
-        if (file.mimetype.startsWith('image/')) {
-            let dateTaken = new Date(); // Fallback to now
-            try {
-                const parser = exifParser.create(file.buffer);
-                const result = parser.parse();
-                if (result.tags.DateTimeOriginal) {
-                    dateTaken = new Date(result.tags.DateTimeOriginal * 1000);
-                }
-            } catch (e) { console.log("Metadata read failed."); }
-
-            const day = String(dateTaken.getDate()).padStart(2, '0');
-            const month = String(dateTaken.getMonth() + 1).padStart(2, '0');
-            const year = dateTaken.getFullYear();
-            
-            // Format: DD-MM-YYYY
-            finalName = index === 0 ? `${day}-${month}-${year}.${extension}` : `${day}-${month}-${year}_${index}.${extension}`;
-        }
-
-        // Upload to Cloudinary using the buffer
-        return new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-                { folder: 'CloudGlass', resource_type: 'auto' },
-                async (error, result) => {
-                    if (error) reject(error);
-                    const newItem = new Item({
-                        name: finalName,
-                        url: result.secure_url,
-                        type: 'file',
-                        owner: req.session.userEmail,
-                        parentId: parentId
-                    });
-                    await newItem.save();
-                    resolve(newItem);
-                }
-            );
-            stream.end(file.buffer);
+    const promises = req.files.map(file => {
+        return new Promise((resolve) => {
+            let finalName = file.originalname;
+            if (file.mimetype.startsWith('image/')) {
+                try {
+                    const parser = exifParser.create(file.buffer);
+                    const tags = parser.parse().tags;
+                    if (tags.DateTimeOriginal) {
+                        const d = new Date(tags.DateTimeOriginal * 1000);
+                        finalName = `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}.${file.originalname.split('.').pop()}`;
+                    }
+                } catch(e) {}
+            }
+            cloudinary.uploader.upload_stream({ folder: 'Cloud' }, async (err, result) => {
+                const item = await new Item({ name: finalName, url: result.secure_url, type: 'file', owner: req.session.userEmail, parentId }).save();
+                resolve(item);
+            }).end(file.buffer);
         });
     });
-
-    await Promise.all(uploadPromises);
+    await Promise.all(promises);
     res.json({ success: true });
 });
 
-// ... (Keep existing login, logout, folder creation, and patch routes) ...
+app.get('/api/items', async (req, res) => {
+    const parentId = req.query.parentId === 'null' || !req.query.parentId ? null : req.query.parentId;
+    const items = await Item.find({ owner: req.session.userEmail, parentId }).sort({ type: 1 });
+    res.json(items);
+});
 
-app.listen(PORT, () => console.log(`🚀 Glass Server on ${PORT}`));
+app.patch('/api/items/:id', async (req, res) => {
+    await Item.findByIdAndUpdate(req.params.id, req.body);
+    res.json({ success: true });
+});
+
+app.delete('/api/items/:id', async (req, res) => {
+    await Item.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
