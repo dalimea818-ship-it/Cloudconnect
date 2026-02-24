@@ -2,31 +2,66 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | CloudConnect</title>
     <link rel="stylesheet" href="dashboard.css">
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <style>
+        /* Restored your original Liquid Glass styling */
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+        .auth-card { 
+            width: 360px; padding: 45px; border-radius: 40px; 
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); 
+            border: 1px solid rgba(255,255,255,0.1); text-align: center; z-index: 10;
+        }
+        input { 
+            width: 100%; padding: 14px; margin: 10px 0; border-radius: 15px; 
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.08); 
+            color: white; box-sizing: border-box; outline: none;
+        }
+        .btn-main { 
+            width: 100%; padding: 15px; border-radius: 18px; border: none; 
+            background: #0A84FF; color: #fff; font-weight: 700; cursor: pointer; 
+            margin-top: 10px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(10, 132, 255, 0.3); }
+        .social-btn { 
+            width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 18px; border: none; 
+            display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; font-weight: 600; 
+        }
+        .goog { background: #fff; color: #000; }
+        .gith { background: #24292e; color: #fff; }
+        .bg-blob { position: absolute; width: 500px; height: 500px; border-radius: 50%; filter: blur(80px); opacity: 0.4; z-index: 1; animation: move 20s infinite alternate; }
+        .blob-1 { background: #0A84FF; top: -10%; left: -10%; }
+        .blob-2 { background: #5E5CE6; bottom: -10%; right: -10%; animation-delay: -10s; }
+        @keyframes move { from { transform: translate(0,0); } to { transform: translate(100px, 100px); } }
+    </style>
 </head>
-<body style="background:#000; display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; font-family:sans-serif;">
-    
-    <div class="auth-card" style="width:360px; padding:40px; background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); border-radius:30px; border:1px solid rgba(255,255,255,0.1); text-align:center;">
-        <h1 style="color:white; letter-spacing:-1px;">Welcome Back</h1>
-        
-        <input type="email" id="email" placeholder="Email" style="width:100%; padding:12px; margin:10px 0; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:white;">
-        <input type="password" id="password" placeholder="Password" style="width:100%; padding:12px; margin:10px 0; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:white;">
-        
-        <button onclick="emailLogin()" style="width:100%; padding:14px; background:#0A84FF; color:white; border:none; border-radius:15px; font-weight:bold; cursor:pointer; margin-top:10px;">Log In</button>
+<body>
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
 
-        <div style="margin:20px 0; color:rgba(255,255,255,0.3); font-size:12px;">OR</div>
+    <div class="auth-card">
+        <h1 style="color:white; letter-spacing:-2px; margin:0;">CloudConnect</h1>
+        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem; margin-top:8px; margin-bottom:25px;">Welcome back to the glass cloud</p>
+        
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button class="btn-main" onclick="emailLogin()">Log In</button>
 
-        <button onclick="authSocial('google')" style="width:100%; padding:12px; background:white; color:black; border:none; border-radius:15px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">
+        <div style="margin:25px 0; color:rgba(255,255,255,0.2); font-size:11px; letter-spacing:1px;">OR CONTINUE WITH</div>
+
+        <button class="social-btn goog" onclick="authSocial('google')">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> Google
         </button>
-        <button onclick="authSocial('github')" style="width:100%; padding:12px; background:#24292e; color:white; border:none; border-radius:15px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+        <button class="social-btn gith" onclick="authSocial('github')">
             <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="18" style="filter:invert(1)"> GitHub
         </button>
 
-        <p style="color:rgba(255,255,255,0.4); font-size:12px; margin-top:20px;">No account? <a href="/signup.html" style="color:#0A84FF; text-decoration:none;">Join now</a></p>
+        <p style="color:rgba(255,255,255,0.3); font-size:12px; margin-top:25px;">
+            Need an account? <a href="/signup.html" style="color:#0A84FF; text-decoration:none; font-weight:600;">Sign up</a>
+        </p>
     </div>
 
     <script>
@@ -46,7 +81,10 @@
             const p = document.getElementById('password').value;
             try {
                 const res = await firebase.auth().signInWithEmailAndPassword(e, p);
-                if (!res.user.emailVerified) return alert("Verify your email first!");
+                if (!res.user.emailVerified) {
+                    alert("Please verify your email! Check your inbox.");
+                    return;
+                }
                 const token = await res.user.getIdToken();
                 sync(token);
             } catch (err) { alert(err.message); }
@@ -62,14 +100,22 @@
         }
 
         async function sync(idToken) {
-            const res = await fetch('/api/auth/firebase', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken })
-            });
-            const data = await res.json();
-            if (data.success) window.location.href = '/dashboard';
-            else alert(data.error);
+            try {
+                const res = await fetch('/api/auth/firebase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    alert("Server error: " + data.error);
+                }
+            } catch (err) {
+                console.error("Sync failed:", err);
+                alert("Cannot reach server. Make sure your Render app is running.");
+            }
         }
     </script>
 </body>
