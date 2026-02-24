@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Liquid Cloud Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cloud</title>
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -12,46 +12,29 @@
 
     <div class="app-layout">
         <aside class="sidebar glass-panel">
-            <h2 style="letter-spacing:-1.5px;">CloudConnect</h2>
+            <h2>📁 Cloud</h2>
             <nav>
-                <button class="pill-btn" onclick="resetToRoot()">My Drive</button>
-                <div class="nav-item" onclick="createFolder()">New Folder</div>
-                <label class="nav-item">Upload Files
-                    <input type="file" multiple style="display:none" onchange="handleUpload(this)">
-                </label>
+                <div class="nav-item" onclick="resetToRoot()">🏠 Home</div>
+                <div class="nav-item" onclick="toggleTheme()">🌓 Theme</div>
+                <div class="nav-item" onclick="createFolder()">📁 New Folder</div>
+                <label class="nav-item">📤 Upload<input type="file" multiple style="display:none" onchange="handleUpload(this)"></label>
             </nav>
-            <a href="/api/logout" class="sign-out">Sign Out</a>
         </aside>
-
         <main class="main-stage">
-            <div id="breadcrumb" class="folder-title">My Cloud</div>
+            <div id="breadcrumb" style="font-size:1.5rem; font-weight:800; margin-bottom:30px; color:var(--text-main);">My Cloud</div>
             <div id="fileGrid" class="file-grid"></div>
         </main>
     </div>
 
-    <nav class="bottom-nav glass-panel">
-        <div onclick="resetToRoot()"><img src="https://cdn-icons-png.flaticon.com/512/1946/1946436.png" width="24"></div>
-        <div onclick="createFolder()"><img src="https://cdn-icons-png.flaticon.com/512/3661/3661334.png" width="24"></div>
-        <label class="fab-btn">+ <input type="file" multiple style="display:none" onchange="handleUpload(this)"></label>
-        <div onclick="goBack()"><img src="https://cdn-icons-png.flaticon.com/512/507/507257.png" width="24"></div>
-        <div onclick="window.location.href='/api/logout'"><img src="https://cdn-icons-png.flaticon.com/512/1828/1828427.png" width="24"></div>
-    </nav>
-
-    <div id="contextMenu" class="glass-morph context-menu">
+    <div id="contextMenu" class="context-menu glass-panel">
         <button onclick="triggerRename()">Rename</button>
-        <button onclick="triggerIconChange()">Change Icon (URL)</button>
-        <hr>
-        <button onclick="triggerDelete()" style="color:#ff453a;">Delete</button>
+        <button onclick="triggerIconChange()">Change Icon</button>
+        <button onclick="triggerDelete()" style="color:#ff453a">Delete</button>
     </div>
 
     <script>
         let currentFolderId = null;
-        let stack = [];
         let activeId = null;
-
-        // ANIMATED ASSETS
-        const GIF_FOLDER = "https://cdn.pixabay.com/animation/2022/10/27/12/57/12-57-22-386_512.gif";
-        const GIF_FILE = "https://cdn-icons-png.flaticon.com/512/3917/3917330.png";
 
         async function loadItems() {
             const res = await fetch(`/api/items?parentId=${currentFolderId}`);
@@ -61,19 +44,31 @@
             grid.innerHTML = items.map(item => {
                 const isFolder = item.type === 'folder';
                 const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.name);
-                const iconSrc = item.customIcon || (isFolder ? GIF_FOLDER : GIF_FILE);
+                const icon = item.customIcon ? `<img src="${item.customIcon}" class="main-icon">` : (isFolder ? '📁' : '📄');
 
                 return `
-                    <div class="file-card glass-panel">
-                        <div class="more-btn" onclick="showMenu(event, '${item._id}')">⋮</div>
-                        <div class="hit-zone" onclick="${isFolder ? `MapsIn('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}">
-                            <div class="icon-box">
-                                ${isImage && !isFolder ? `<img src="${item.url}" class="img-preview">` : `<img src="${iconSrc}" class="main-icon">`}
-                            </div>
-                            <div class="file-name">${item.name}</div>
+                <div class="file-card glass-panel">
+                    <div class="more-btn" onclick="showMenu(event, '${item._id}')">⋮</div>
+                    <div class="hit-zone" onclick="${isFolder ? `MapsIn('${item._id}', '${item.name}')` : `window.open('${item.url}', '_blank')`}">
+                        <div class="icon-box" style="font-size:60px; display:flex; justify-content:center;">
+                            ${isImage && !isFolder ? `<img src="${item.url}" class="img-preview">` : icon}
                         </div>
-                    </div>`;
+                        <div class="file-name" title="${item.name}">${item.name}</div>
+                    </div>
+                </div>`;
             }).join('');
+        }
+
+        function navigateIn(id, name) {
+            currentFolderId = id;
+            document.getElementById('breadcrumb').innerText = name;
+            loadItems();
+        }
+
+        function resetToRoot() {
+            currentFolderId = null;
+            document.getElementById('breadcrumb').innerText = "My Cloud";
+            loadItems();
         }
 
         function showMenu(e, id) {
@@ -81,61 +76,20 @@
             activeId = id;
             const menu = document.getElementById('contextMenu');
             menu.style.display = 'block';
-            menu.style.top = `${e.pageY}px`;
-            menu.style.left = `${e.pageX - 120}px`;
-        }
-
-        async function triggerRename() {
-            const n = prompt("New Name:");
-            if(n) updateItem({ name: n });
+            menu.style.top = e.pageY + 'px';
+            menu.style.left = (e.pageX - 150) + 'px';
         }
 
         async function triggerIconChange() {
-            const url = prompt("Paste Image/GIF URL:");
-            if(url) updateItem({ customIcon: url });
-        }
-
-        async function updateItem(data) {
-            await fetch(`/api/items/${activeId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-            loadItems();
-        }
-
-        function navigateIn(id, name) {
-            stack.push({ id: currentFolderId, name });
-            currentFolderId = id;
-            document.getElementById('breadcrumb').innerText = name;
-            loadItems();
-        }
-
-        function goBack() {
-            if (stack.length === 0) return;
-            const prev = stack.pop();
-            currentFolderId = prev.id;
-            document.getElementById('breadcrumb').innerText = stack.length > 0 ? stack[stack.length-1].name : "My Cloud";
-            loadItems();
-        }
-
-        function resetToRoot() {
-            currentFolderId = null; stack = [];
-            document.getElementById('breadcrumb').innerText = "My Cloud";
-            loadItems();
-        }
-
-        async function handleUpload(input) {
-            const fd = new FormData();
-            for(let f of input.files) fd.append('files', f);
-            fd.append('parentId', currentFolderId);
-            await fetch('/api/upload', { method:'POST', body:fd });
-            loadItems();
-        }
-
-        async function createFolder() {
-            const name = prompt("Folder Name:");
-            if(name) { await fetch('/api/folder', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, parentId:currentFolderId})}); loadItems(); }
-        }
-
-        async function triggerDelete() {
-            if(confirm("Delete?")) { await fetch(`/api/items/${activeId}`, {method:'DELETE'}); loadItems(); }
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = async (e) => {
+                const fd = new FormData();
+                fd.append('files', e.target.files[0]);
+                const res = await fetch('/api/upload', { method:'POST', body:fd });
+                loadItems();
+            };
+            input.click();
         }
 
         window.onclick = () => document.getElementById('contextMenu').style.display = 'none';
