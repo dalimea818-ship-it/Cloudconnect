@@ -8,46 +8,129 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <style>
-        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; }
-        .auth-card { width: 360px; padding: 45px; border-radius: 40px; background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); border: 1px solid rgba(255,255,255,0.1); text-align: center; }
-        .social-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
-        .social-btn { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 15px; border-radius: 20px; border: none; cursor: pointer; font-weight: 600; font-size: 0.95rem; transition: 0.2s ease; }
-        .social-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
-        .google { background: #fff; color: #000; }
-        .github { background: #24292e; color: #fff; }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; margin: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .auth-card { 
+            width: 360px; padding: 45px; border-radius: 40px; 
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(50px); 
+            border: 1px solid rgba(255,255,255,0.1); text-align: center; 
+            z-index: 10;
+        }
+        input { 
+            width: 100%; padding: 14px; margin: 10px 0; border-radius: 15px; 
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.08); 
+            color: white; box-sizing: border-box; outline: none; transition: 0.3s;
+        }
+        input:focus { border-color: #0A84FF; background: rgba(255,255,255,0.12); }
+        .btn-main { 
+            width: 100%; padding: 15px; border-radius: 18px; border: none; 
+            background: #0A84FF; color: #fff; font-weight: 700; cursor: pointer; 
+            margin-top: 10px; transition: 0.2s; 
+        }
+        .btn-main:hover { background: #0070e0; transform: translateY(-1px); }
+        .divider { margin: 30px 0; border-bottom: 1px solid rgba(255,255,255,0.1); position: relative; }
+        .divider span { 
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%); 
+            background: #000; padding: 0 15px; color: #666; font-size: 11px; text-transform: uppercase; 
+        }
+        .social-btn { 
+            width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 18px; 
+            border: none; display: flex; align-items: center; justify-content: center; 
+            gap: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: 0.2s;
+        }
+        .social-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .goog { background: #fff; color: #000; }
+        .gith { background: #24292e; color: #fff; }
+        .footer-link { color: rgba(255,255,255,0.3); font-size: 12px; margin-top: 20px; }
+        .footer-link a { color: #0A84FF; text-decoration: none; font-weight: 600; }
     </style>
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
     <div class="bg-blob blob-2"></div>
+
     <div class="auth-card">
-        <h1 style="color:white; letter-spacing:-1.5px; margin-bottom:5px;">CloudConnect</h1>
-        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem;">Sign in to your private vault</p>
-        <div class="social-stack">
-            <button class="social-btn google" onclick="auth('google')">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_Logo.svg" width="18"> Google
-            </button>
-            <button class="social-btn github" onclick="auth('github')">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" width="18" style="filter:invert(1)"> GitHub
-            </button>
-        </div>
-        <p style="margin-top:25px; font-size:0.8rem; color:rgba(255,255,255,0.3);">New here? <a href="/signup.html" style="color:var(--accent); text-decoration:none;">Create account</a></p>
+        <h1 style="color:white; letter-spacing:-1.5px; margin-bottom:5px;">Welcome Back</h1>
+        <p style="color:rgba(255,255,255,0.4); font-size:0.85rem; margin-bottom:25px;">Enter your credentials to continue</p>
+        
+        <input type="email" id="email" placeholder="Email Address">
+        <input type="password" id="password" placeholder="Password">
+        <button class="btn-main" onclick="emailLogin()">Log In</button>
+
+        <div class="divider"><span>OR CONTINUE WITH</span></div>
+
+        <button class="social-btn goog" onclick="authSocial('google')">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> Google
+        </button>
+        <button class="social-btn gith" onclick="authSocial('github')">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" width="18" style="filter:invert(1)"> GitHub
+        </button>
+
+        <p class="footer-link">
+            New to CloudConnect? <a href="/signup.html">Create account</a>
+        </p>
     </div>
+
     <script>
-        const firebaseConfig = { /* YOUR FIREBASE CONFIG */ };
+        // Your specific Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyB41nU-ULZ28LxNl8KkeE0c74WjwjyIDR4",
+            authDomain: "cloudify-227f9.firebaseapp.com",
+            projectId: "cloudify-227f9",
+            storageBucket: "cloudify-227f9.firebasestorage.app",
+            messagingSenderId: "311824033320",
+            appId: "1:311824033320:web:d4fc507258cb544c3e771d",
+            measurementId: "G-1RG8CN9G52"
+        };
         firebase.initializeApp(firebaseConfig);
-        async function auth(providerName) {
-            let provider = providerName === 'google' ? new firebase.auth.GoogleAuthProvider() : new firebase.auth.GithubAuthProvider();
+
+        // --- EMAIL/PASSWORD LOGIN ---
+        async function emailLogin() {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
             try {
-                const result = await firebase.auth().signInWithPopup(provider);
-                const idToken = await result.user.getIdToken();
-                const res = await fetch('/api/auth/firebase', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ idToken })
-                });
-                if(res.ok) window.location.href = '/dashboard';
-            } catch (e) { alert("Login failed: " + e.message); }
+                const res = await firebase.auth().signInWithEmailAndPassword(e, p);
+                
+                // Check if email is verified
+                if (!res.user.emailVerified) {
+                    alert("Please verify your email address before logging in. Check your inbox for the link.");
+                    // Optional: Resend verification email
+                    // await res.user.sendEmailVerification();
+                    return;
+                }
+
+                const token = await res.user.getIdToken();
+                syncWithServer(token);
+            } catch (err) { 
+                alert("Login failed: " + err.message); 
+            }
+        }
+
+        // --- SOCIAL AUTH (GOOGLE & GITHUB) ---
+        async function authSocial(type) {
+            const provider = type === 'google' 
+                ? new firebase.auth.GoogleAuthProvider() 
+                : new firebase.auth.GithubAuthProvider();
+            try {
+                const res = await firebase.auth().signInWithPopup(provider);
+                const token = await res.user.getIdToken();
+                syncWithServer(token);
+            } catch (err) { 
+                alert("Auth failed: " + err.message); 
+            }
+        }
+
+        // --- SYNC TOKEN WITH BACKEND SESSION ---
+        async function syncWithServer(idToken) {
+            const res = await fetch('/api/auth/firebase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken })
+            });
+            if(res.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                alert("Server sync failed. Please try again.");
+            }
         }
     </script>
 </body>
